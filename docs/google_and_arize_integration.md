@@ -20,9 +20,9 @@ AeroCaliper is built from the ground up to deeply integrate Google Cloud Platfor
    - Standard stdout `print()` statements are bypassed.
    - AeroCaliper implements `google-cloud-logging` to stream structured logs directly to the GCP Logs Explorer, enabling native alert configurations.
 
-5. **Google Cloud Functions (Distributed Gateway)**
-   - Our deep packet inspection mechanism (simulating Cloud Armor / Model Armor rules) is deployed as an external, HTTP-triggered Google Cloud Function (2nd Gen).
-   - This proves our microservice architecture, allowing independent scaling of the inspection gateway vs the orchestration engine.
+5. **Google Cloud Model Armor & Cloud Functions**
+   - Our deep packet inspection mechanism is powered by the official `google-cloud-modelarmor` SDK, actively validating payloads against enterprise security templates via the `SanitizeUserPrompt` API.
+   - This logic is deployed as an external, HTTP-triggered Google Cloud Function (2nd Gen), proving a distributed microservice architecture.
 
 6. **Gemini CLI Config**
    - We include a native `gemini-cli-config.json` that drops `@arizeai/phoenix-mcp` into the Gemini CLI for manual developer interaction, precisely as the Arize track rubric requires.

@@ -123,7 +123,7 @@ class StandardMCPClient:
             await self.connect()
 
         try:
-            result = await self.session.call_tool("get-spans", arguments={"project_name": "aerocaliper", "limit": 1})
+            result = await self.session.call_tool("get-spans", arguments={"project_identifier": "aerocaliper", "limit": 1})
 
             if result.isError or not result.content:
                 return self._canonical_fallback("isError or empty content")
