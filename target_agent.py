@@ -26,7 +26,10 @@ print(f"[OTel] Registered → {PHOENIX_SPACE_URL} (project: aerocaliper)")
 # --- Google Gen AI SDK (Agent Platform) ---
 import google.genai
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
-from arize.experimental.datasets.experiments.prompts import get_prompt
+try:
+    from arize.experimental.datasets.experiments.prompts import get_prompt
+except ImportError:
+    get_prompt = None
 
 class TargetAgent:
     """
@@ -36,6 +39,8 @@ class TargetAgent:
     """
     def __init__(self):
         try:
+            if not get_prompt:
+                raise ImportError("get_prompt is not available.")
             prompt_obj = get_prompt(name="aerocaliper-finops-routing-agent")
             self.system_prompt = prompt_obj.template
             print("[Target Agent] Booted with LIVE prompt from Arize Registry.")

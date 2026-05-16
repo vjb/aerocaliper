@@ -169,11 +169,14 @@
 
   /* Prompt comparison */
   .comparison-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; }
-  .prompt-box { border-radius:10px; overflow:hidden; border:1px solid var(--border); }
-  .prompt-label { padding:8px 12px; font-size:11px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; }
+  .prompt-box { border-radius:10px; overflow:hidden; border:1px solid var(--border); display:flex; flex-direction:column; height:220px; }
+  .prompt-label { padding:8px 12px; font-size:11px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; flex-shrink:0; }
   .prompt-label.before { background:rgba(239,68,68,0.1); color:var(--accent-red); border-bottom:1px solid rgba(239,68,68,0.2); }
   .prompt-label.after { background:rgba(16,185,129,0.1); color:var(--accent-green); border-bottom:1px solid rgba(16,185,129,0.2); }
-  .prompt-text { padding:12px; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6; color:var(--text-secondary); min-height:100px; background:var(--bg-card); white-space:pre-wrap; word-break:break-word; }
+  .prompt-text { padding:12px; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6; color:var(--text-secondary); background:var(--bg-card); white-space:pre-wrap; word-break:break-word; overflow-y:auto; flex:1; }
+  .prompt-text::-webkit-scrollbar { width:4px; }
+  .prompt-text::-webkit-scrollbar-track { background:transparent; }
+  .prompt-text::-webkit-scrollbar-thumb { background:var(--bg-elevated); border-radius:4px; }
   .prompt-empty { color:var(--text-muted); font-style:italic; }
 
   /* Arize link */
@@ -196,7 +199,10 @@
 
   /* A2UI Cards */
   .a2ui-section { margin-bottom:20px; }
-  .a2ui-cards { display:flex; flex-direction:column; gap:12px; padding:16px; }
+  .a2ui-cards { display:flex; flex-direction:column; gap:12px; padding:16px; max-height: 380px; overflow-y: auto; }
+  .a2ui-cards::-webkit-scrollbar { width:4px; }
+  .a2ui-cards::-webkit-scrollbar-track { background:transparent; }
+  .a2ui-cards::-webkit-scrollbar-thumb { background:var(--bg-elevated); border-radius:4px; }
   .a2ui-card {
     border-radius:10px; border:1px solid var(--border); background:var(--bg-card);
     padding:14px 16px; animation:cardIn 0.3s ease;

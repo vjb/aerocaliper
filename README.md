@@ -186,6 +186,14 @@ python target_agent.py
 
 ---
 
+## Technical Documentation
+
+Dive deeper into how AeroCaliper is built:
+- 📖 [**Agent Architecture**](docs/agent_architecture.md) — Learn about Thought Signatures, A2A Zero-Trust Interceptors, and Intent-Driven Anomaly Hunting.
+- ☁️ [**Google Cloud & Arize Integration**](docs/google_and_arize_integration.md) — Detailed breakdown of how Cloud Run, Secret Manager, Cloud Logging, and Phoenix MCP work together.
+
+---
+
 ## Honest Disclosures
 
 See [`MOCKS_AND_LIMITATIONS.md`](MOCKS_AND_LIMITATIONS.md) for a full audit of what's real vs. simulated.
