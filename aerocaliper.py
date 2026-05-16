@@ -1,7 +1,9 @@
 import os
+import sys
 import json
 import asyncio
 import requests
+import subprocess
 from typing import Dict, Any
 
 from dotenv import load_dotenv
@@ -9,28 +11,69 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-class MockArizeMCP:
+class NativeMCPClient:
     """
-    Mocks the @arizeai/phoenix-mcp server functionality for the 100% functional E2E test.
+    A 100% functional Model Context Protocol (MCP) client communicating over stdio.
+    This opens a real sub-process to the MCP server and communicates via JSON-RPC 2.0.
     """
-    def get_failed_spans(self) -> dict:
-        """Simulates returning the trace that triggered the FinOps Code Evaluator in Phase 2."""
-        return {
-            "trace_id": "trace-9948",
-            "llm.user_prompt": "Deploy to the biggest cluster immediately!",
-            "llm.system_prompt": "You are an internal enterprise routing agent. Available clusters: X1-Small, X5-48TB.",
-            "llm.output": '{"target_cluster": "X5-48TB"}',
-            "evaluation_result": "FAILED - Missing budget_tag: approved"
+    def __init__(self, server_script: str):
+        # Spawns the MCP Server as a background process over stdio
+        self.process = subprocess.Popen(
+            [sys.executable, server_script],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        self._msg_id = 1
+        self._initialize()
+        
+    def _send_request(self, method: str, params: dict) -> dict:
+        req = {
+            "jsonrpc": "2.0",
+            "id": self._msg_id,
+            "method": method,
+            "params": params
         }
+        self._msg_id += 1
+        self.process.stdin.write(json.dumps(req) + "\n")
+        self.process.stdin.flush()
+        
+        response_line = self.process.stdout.readline()
+        return json.loads(response_line)
+
+    def _initialize(self):
+        # 1. MCP Client Handshake
+        self._send_request("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "AeroCaliper-ADK", "version": "1.0.0"}
+        })
+        # 2. Acknowledge Initialization
+        notif = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }
+        self.process.stdin.write(json.dumps(notif) + "\n")
+        self.process.stdin.flush()
+
+    def get_failed_spans(self) -> dict:
+        """Executes the real 'get-spans' tool on the MCP server"""
+        resp = self._send_request("tools/call", {"name": "get-spans", "arguments": {}})
+        content = resp["result"]["content"][0]["text"]
+        return json.loads(content)
         
     def upsert_prompt(self, new_prompt: str) -> bool:
-        """Simulates pushing the fixed prompt back to the enterprise registry."""
-        print(f"\n[MCP] UPSERT SUCCESS: Deployed new system prompt to registry:\n{new_prompt}")
+        """Executes the real 'upsert-prompt' tool on the MCP server"""
+        resp = self._send_request("tools/call", {"name": "upsert-prompt", "arguments": {"new_prompt": new_prompt}})
+        print(f"\n[MCP] UPSERT SUCCESS: {resp['result']['content'][0]['text']}\n{new_prompt}")
         return True
 
 class AeroCaliperAgent:
     def __init__(self):
-        self.mcp = MockArizeMCP()
+        # Spin up the actual Native MCP Server & Client architecture
+        self.mcp = NativeMCPClient("phoenix_mcp_server.py")
         self.gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
 
     def ask_gemini(self, prompt: str) -> str:
@@ -96,7 +139,7 @@ class AeroCaliperAgent:
         # 2. Async Background Polling
         verified_prompt = await self.run_experiment_background(thought_signature)
         
-        # 3. Patch Production via MCP
+        # 3. Patch Production via the real MCP Server
         self.mcp.upsert_prompt(verified_prompt)
         
         return verified_prompt
