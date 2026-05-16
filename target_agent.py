@@ -10,14 +10,13 @@ from phoenix.otel import register
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
-# IMPORTANT: Arize Phoenix Cloud requires a PHOENIX API KEY (distinct from the Arize AX API key).
-# Obtain it from app.phoenix.arize.com → Platform Settings → API Keys
-# Set PHOENIX_API_KEY and PHOENIX_COLLECTOR_ENDPOINT in .env, then the SDK handles auth automatically.
-os.environ.setdefault("PHOENIX_API_KEY", os.getenv("ARIZE_API_KEY", ""))
-os.environ.setdefault("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com")
+# Arize Phoenix Cloud — OTel auth uses Bearer token format
+phoenix_api_key = os.getenv("PHOENIX_API_KEY", "")
 
 tracer_provider = register(
     project_name="aerocaliper",
+    endpoint="https://app.phoenix.arize.com/v1/traces",
+    headers={"Authorization": f"Bearer {phoenix_api_key}"},
 )
 tracer = trace.get_tracer("target_agent_tracer", tracer_provider=tracer_provider)
 

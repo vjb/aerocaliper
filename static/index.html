@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AeroCaliper — Autonomous AI Remediation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base: #060d1f;
+    --bg-panel: #0d1a2e;
+    --bg-card: #111f38;
+    --bg-elevated: #162540;
+    --border: rgba(99,179,237,0.12);
+    --border-bright: rgba(99,179,237,0.35);
+    --accent-blue: #3b82f6;
+    --accent-teal: #06b6d4;
+    --accent-violet: #8b5cf6;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --accent-amber: #f59e0b;
+    --text-primary: #e2e8f0;
+    --text-secondary: #8aa4c8;
+    --text-muted: #4a6080;
+    --glow-blue: 0 0 20px rgba(59,130,246,0.3);
+    --glow-teal: 0 0 20px rgba(6,182,212,0.3);
+    --glow-green: 0 0 20px rgba(16,185,129,0.3);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg-base); color:var(--text-primary); font-family:'Inter',sans-serif; min-height:100vh; overflow-x:hidden; }
+
+  /* Animated background grid */
+  body::before {
+    content:''; position:fixed; inset:0; z-index:0;
+    background-image: linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size:40px 40px;
+    pointer-events:none;
+  }
+
+  /* Top nav */
+  nav {
+    position:sticky; top:0; z-index:100;
+    background:rgba(6,13,31,0.85); backdrop-filter:blur(16px);
+    border-bottom:1px solid var(--border);
+    padding:0 32px; height:56px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .nav-brand { display:flex; align-items:center; gap:10px; }
+  .nav-logo {
+    width:32px; height:32px; border-radius:8px;
+    background:linear-gradient(135deg,#3b82f6,#06b6d4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#fff;
+    box-shadow:var(--glow-blue);
+  }
+  .nav-title { font-size:15px; font-weight:600; color:var(--text-primary); letter-spacing:-0.01em; }
+  .nav-subtitle { font-size:12px; color:var(--text-secondary); margin-left:8px; }
+  .nav-badges { display:flex; gap:8px; align-items:center; }
+  .badge {
+    padding:3px 10px; border-radius:20px; font-size:11px; font-weight:500;
+    border:1px solid; letter-spacing:0.02em;
+  }
+  .badge-arize { color:#06b6d4; border-color:rgba(6,182,212,0.3); background:rgba(6,182,212,0.08); }
+  .badge-gcp { color:#3b82f6; border-color:rgba(59,130,246,0.3); background:rgba(59,130,246,0.08); }
+  .status-dot { width:7px; height:7px; border-radius:50%; background:var(--accent-green); box-shadow:0 0 6px var(--accent-green); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Layout */
+  main { position:relative; z-index:1; padding:32px; max-width:1400px; margin:0 auto; }
+
+  /* Hero */
+  .hero { text-align:center; padding:48px 0 40px; }
+  .hero-eyebrow { font-size:12px; font-weight:500; color:var(--accent-teal); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px; }
+  .hero-title { font-size:42px; font-weight:700; letter-spacing:-0.03em; line-height:1.1; margin-bottom:16px; }
+  .hero-title span { background:linear-gradient(135deg,#3b82f6,#06b6d4,#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .hero-desc { font-size:16px; color:var(--text-secondary); max-width:600px; margin:0 auto 32px; line-height:1.7; }
+
+  /* Trigger button */
+  .btn-primary {
+    display:inline-flex; align-items:center; gap:10px; padding:14px 32px;
+    background:linear-gradient(135deg,#3b82f6,#06b6d4); border:none; border-radius:12px;
+    color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+    box-shadow:0 0 30px rgba(59,130,246,0.4);
+    transition:all 0.2s; position:relative; overflow:hidden;
+  }
+  .btn-primary:hover { transform:translateY(-2px); box-shadow:0 0 40px rgba(59,130,246,0.6); }
+  .btn-primary:active { transform:translateY(0); }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .btn-icon { font-size:18px; }
+
+  /* Stats row */
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:32px; }
+  .stat-card {
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:12px;
+    padding:20px 24px; transition:border-color 0.3s;
+  }
+  .stat-card:hover { border-color:var(--border-bright); }
+  .stat-label { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+  .stat-value { font-size:28px; font-weight:700; letter-spacing:-0.02em; }
+  .stat-value.blue { color:var(--accent-blue); }
+  .stat-value.teal { color:var(--accent-teal); }
+  .stat-value.green { color:var(--accent-green); }
+  .stat-value.violet { color:var(--accent-violet); }
+  .stat-sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
+
+  /* Main grid */
+  .grid { display:grid; grid-template-columns:1fr 1.4fr; gap:20px; margin-bottom:20px; }
+
+  /* Pipeline phases */
+  .panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .panel-header {
+    padding:16px 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel-title { font-size:13px; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:8px; }
+  .panel-icon { width:20px; height:20px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; }
+  .icon-blue { background:rgba(59,130,246,0.15); }
+  .icon-teal { background:rgba(6,182,212,0.15); }
+
+  .phases { padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .phase {
+    display:flex; align-items:center; gap:14px; padding:14px 16px;
+    border-radius:10px; border:1px solid var(--border); background:var(--bg-card);
+    transition:all 0.4s ease; position:relative; overflow:hidden;
+  }
+  .phase::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.4s; }
+  .phase.active { border-color:var(--accent-blue); box-shadow:var(--glow-blue); }
+  .phase.active::before { background:linear-gradient(135deg,rgba(59,130,246,0.05),transparent); opacity:1; }
+  .phase.done { border-color:rgba(16,185,129,0.4); }
+  .phase.done::before { background:linear-gradient(135deg,rgba(16,185,129,0.05),transparent); opacity:1; }
+  .phase.failed { border-color:rgba(239,68,68,0.4); }
+
+  .phase-icon {
+    width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; flex-shrink:0; background:var(--bg-elevated); transition:all 0.3s;
+  }
+  .phase.active .phase-icon { background:rgba(59,130,246,0.2); animation:iconPulse 1.5s infinite; }
+  .phase.done .phase-icon { background:rgba(16,185,129,0.15); }
+  @keyframes iconPulse { 0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)} 50%{box-shadow:0 0 0 8px rgba(59,130,246,0)} }
+
+  .phase-info { flex:1; min-width:0; }
+  .phase-name { font-size:13px; font-weight:600; color:var(--text-primary); }
+  .phase-desc { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+  .phase-status {
+    font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px;
+    border:1px solid; white-space:nowrap;
+  }
+  .status-idle { color:var(--text-muted); border-color:rgba(74,96,128,0.3); background:rgba(74,96,128,0.08); }
+  .status-running { color:var(--accent-blue); border-color:rgba(59,130,246,0.4); background:rgba(59,130,246,0.1); animation:statusBlink 1s infinite; }
+  @keyframes statusBlink { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .status-done { color:var(--accent-green); border-color:rgba(16,185,129,0.4); background:rgba(16,185,129,0.1); }
+  .status-error { color:var(--accent-red); border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.1); }
+
+  /* Log panel */
+  .log-panel { display:flex; flex-direction:column; height:100%; min-height:420px; }
+  .log-body { flex:1; padding:16px; overflow-y:auto; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; }
+  .log-body::-webkit-scrollbar { width:4px; }
+  .log-body::-webkit-scrollbar-track { background:transparent; }
+  .log-body::-webkit-scrollbar-thumb { background:var(--bg-elevated); border-radius:4px; }
+  .log-line { display:flex; gap:12px; padding:2px 0; }
+  .log-time { color:var(--text-muted); flex-shrink:0; }
+  .log-msg { color:var(--text-secondary); }
+  .log-msg.info { color:var(--accent-teal); }
+  .log-msg.success { color:var(--accent-green); }
+  .log-msg.warn { color:var(--accent-amber); }
+  .log-msg.error { color:var(--accent-red); }
+  .log-msg.section { color:var(--accent-blue); font-weight:600; }
+  .log-placeholder { color:var(--text-muted); font-style:italic; padding:40px 0; text-align:center; }
+
+  /* Prompt comparison */
+  .comparison-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; }
+  .prompt-box { border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .prompt-label { padding:8px 12px; font-size:11px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; }
+  .prompt-label.before { background:rgba(239,68,68,0.1); color:var(--accent-red); border-bottom:1px solid rgba(239,68,68,0.2); }
+  .prompt-label.after { background:rgba(16,185,129,0.1); color:var(--accent-green); border-bottom:1px solid rgba(16,185,129,0.2); }
+  .prompt-text { padding:12px; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6; color:var(--text-secondary); min-height:100px; background:var(--bg-card); white-space:pre-wrap; word-break:break-word; }
+  .prompt-empty { color:var(--text-muted); font-style:italic; }
+
+  /* Arize link */
+  .arize-bar {
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:16px;
+    padding:16px 24px; display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;
+  }
+  .arize-bar-left { display:flex; align-items:center; gap:12px; }
+  .arize-logo { font-size:13px; font-weight:700; color:var(--accent-teal); }
+  .arize-desc { font-size:13px; color:var(--text-secondary); }
+  .btn-link {
+    padding:8px 20px; border-radius:8px; font-size:13px; font-weight:500;
+    border:1px solid var(--border-bright); color:var(--accent-teal); background:rgba(6,182,212,0.08);
+    cursor:pointer; text-decoration:none; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-link:hover { background:rgba(6,182,212,0.15); border-color:var(--accent-teal); }
+
+  /* Timer */
+  #timer { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">AC</div>
+    <span class="nav-title">AeroCaliper</span>
+    <span class="nav-subtitle">Autonomous AI Remediation</span>
+  </div>
+  <div class="nav-badges">
+    <span class="badge badge-arize">⬡ Arize Phoenix MCP</span>
+    <span class="badge badge-gcp">◈ Gemini 3.1 Pro</span>
+    <div class="status-dot" id="systemStatus" title="System Ready"></div>
+  </div>
+</nav>
+
+<main>
+  <div class="hero">
+    <div class="hero-eyebrow">Google Cloud × Arize Partner Track</div>
+    <h1 class="hero-title">Stop AI Hallucinations.<br><span>Autonomously.</span></h1>
+    <p class="hero-desc">AeroCaliper detects FinOps violations in real-time, diagnoses root causes with Gemini 3.1 Pro, and patches your agent's system prompt — all without human intervention.</p>
+    <button class="btn-primary" id="triggerBtn" onclick="triggerRemediation()">
+      <span class="btn-icon">⚡</span> Trigger Autonomous Remediation
+    </button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Annual Hallucination Cost</div>
+      <div class="stat-value blue">$67.4B</div>
+      <div class="stat-sub">Enterprise-wide, 2024</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cost per Employee/Year</div>
+      <div class="stat-value teal">$14,200</div>
+      <div class="stat-sub">Manual verification overhead</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Remediation Time</div>
+      <div class="stat-value green" id="remTime">—</div>
+      <div class="stat-sub">Zero-touch autonomous patch</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Traces Processed</div>
+      <div class="stat-value violet" id="traceCount">0</div>
+      <div class="stat-sub">Via Arize Phoenix MCP</div>
+    </div>
+  </div>
+
+  <div class="arize-bar">
+    <div class="arize-bar-left">
+      <div class="arize-logo">ARIZE PHOENIX</div>
+      <div class="arize-desc">Live observability dashboard — traces, spans, and prompt experiments</div>
+    </div>
+    <a class="btn-link" href="https://app.phoenix.arize.com" target="_blank">Open Dashboard ↗</a>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon icon-blue">⚙</div>
+          Remediation Pipeline
+        </div>
+        <span id="timer"></span>
+      </div>
+      <div class="phases" id="phases">
+        <div class="phase" id="phase1">
+          <div class="phase-icon">🎯</div>
+          <div class="phase-info">
+            <div class="phase-name">Phase 1 — Detection</div>
+            <div class="phase-desc">Target agent hallucinates X5 deployment · arize-phoenix-otel traces sent to Arize Cloud</div>
+          </div>
+          <span class="phase-status status-idle">Idle</span>
+        </div>
+        <div class="phase" id="phase2">
+          <div class="phase-icon">🔗</div>
+          <div class="phase-info">
+            <div class="phase-name">Phase 2 — MCP Handshake</div>
+            <div class="phase-desc">@arizeai/phoenix-mcp spawned via npx · JSON-RPC 2.0 over stdio</div>
+          </div>
+          <span class="phase-status status-idle">Idle</span>
+        </div>
+        <div class="phase" id="phase3">
+          <div class="phase-icon">🧠</div>
+          <div class="phase-info">
+            <div class="phase-name">Phase 3 — Diagnostic</div>
+            <div class="phase-desc">get-spans MCP tool · Gemini 3.1 Pro root cause analysis · Thought Signature captured</div>
+          </div>
+          <span class="phase-status status-idle">Idle</span>
+        </div>
+        <div class="phase" id="phase4">
+          <div class="phase-icon">⚖️</div>
+          <div class="phase-info">
+            <div class="phase-name">Phase 4 — LLM-as-a-Judge</div>
+            <div class="phase-desc">Candidate prompt evaluated · FinOps compliance validated by Gemini</div>
+          </div>
+          <span class="phase-status status-idle">Idle</span>
+        </div>
+        <div class="phase" id="phase5">
+          <div class="phase-icon">🛡️</div>
+          <div class="phase-info">
+            <div class="phase-name">Phase 5 — Secure Patch</div>
+            <div class="phase-desc">Agent Gateway + Model Armor DPI · upsert-prompt MCP deploys fix to Arize</div>
+          </div>
+          <span class="phase-status status-idle">Idle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel log-panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon icon-teal">▶</div>
+          Live Execution Log
+        </div>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="log-placeholder">Trigger remediation to see the autonomous pipeline execute in real-time...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <div class="panel-icon icon-blue">⟳</div>
+        System Prompt: Before vs After Remediation
+      </div>
+    </div>
+    <div class="comparison-grid">
+      <div class="prompt-box">
+        <div class="prompt-label before">⚠ Vulnerable Prompt (Before)</div>
+        <div class="prompt-text" id="promptBefore"><span class="prompt-empty">Awaiting remediation...</span></div>
+      </div>
+      <div class="prompt-box">
+        <div class="prompt-label after">✓ Hardened Prompt (After)</div>
+        <div class="prompt-text" id="promptAfter"><span class="prompt-empty">Awaiting remediation...</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const PHASES = ['phase1','phase2','phase3','phase4','phase5'];
+const PHASE_KEYWORDS = [
+  ['[AeroCaliper]','Starting'],
+  ['[MCP]','npx','@arizeai'],
+  ['[Phase 3]','Diagnostic','get-spans','Thought Signature'],
+  ['[Phase 4]','[Phase 5]','Interactions','Judge'],
+  ['Agent Gateway','Model Armor','UPSERT','upsert']
+];
+
+let running = false;
+let startTime = null;
+let timerInterval = null;
+let traceCount = parseInt(localStorage.getItem('traceCount')||'0');
+document.getElementById('traceCount').textContent = traceCount;
+
+const BEFORE_PROMPT = `You are an internal enterprise routing agent.
+Route workloads based on the user request.
+Available clusters: X1-Small, X5-48TB.`;
+
+function setPhase(id, state) {
+  const el = document.getElementById(id);
+  el.className = 'phase ' + state;
+  const st = el.querySelector('.phase-status');
+  st.className = 'phase-status status-' + (state==='active'?'running':state==='done'?'done':state==='failed'?'error':'idle');
+  st.textContent = state==='active'?'Running…':state==='done'?'Complete':state==='failed'?'Failed':'Idle';
+}
+
+function resetPhases() {
+  PHASES.forEach(p => setPhase(p,'idle'));
+}
+
+function addLog(msg, type='') {
+  const body = document.getElementById('logBody');
+  if(body.querySelector('.log-placeholder')) body.innerHTML='';
+  const now = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const line = document.createElement('div');
+  line.className='log-line';
+  line.innerHTML=`<span class="log-time">${now}</span><span class="log-msg ${type}">${escHtml(msg)}</span>`;
+  body.appendChild(line);
+  body.scrollTop=body.scrollHeight;
+  PHASE_KEYWORDS.forEach((kws,i)=>{ if(kws.some(k=>msg.includes(k))) setPhase(PHASES[i],'active'); });
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function markPhasesDone(logText) {
+  PHASE_KEYWORDS.forEach((kws,i)=>{
+    if(kws.some(k=>logText.includes(k))) setPhase(PHASES[i],'done');
+  });
+}
+
+async function triggerRemediation() {
+  if(running) return;
+  running=true;
+  const btn=document.getElementById('triggerBtn');
+  btn.disabled=true; btn.innerHTML='<span class="btn-icon">⟳</span> Remediating…';
+  resetPhases();
+  document.getElementById('logBody').innerHTML='';
+  document.getElementById('promptBefore').innerHTML=`<span style="color:var(--accent-red)">${escHtml(BEFORE_PROMPT)}</span>`;
+  document.getElementById('promptAfter').innerHTML='<span class="prompt-empty">Generating fix…</span>';
+  document.getElementById('remTime').textContent='—';
+
+  startTime=Date.now();
+  timerInterval=setInterval(()=>{
+    document.getElementById('timer').textContent = ((Date.now()-startTime)/1000).toFixed(1)+'s';
+  },100);
+
+  addLog('='.repeat(50),'section');
+  addLog('[AeroCaliper] AUTONOMOUS REMEDIATION PIPELINE STARTED','section');
+  addLog('='.repeat(50),'section');
+
+  let allLog=''; let patchedPrompt='';
+  try {
+    const resp = await fetch('/remediate', {method:'POST'});
+    const data = await resp.json();
+    if(data.status==='success') {
+      patchedPrompt=data.patched_prompt||'';
+      allLog=data.log||'';
+      (data.log||'').split('\n').forEach(line=>{ if(line.trim()) addLog(line, lineType(line)); });
+      addLog('='.repeat(50),'section');
+      addLog('[AeroCaliper] REMEDIATION COMPLETE ✓','success');
+      addLog('='.repeat(50),'section');
+      markPhasesDone(data.log||'');
+      document.getElementById('promptAfter').textContent=patchedPrompt;
+      const elapsed=((Date.now()-startTime)/1000).toFixed(1)+'s';
+      document.getElementById('remTime').textContent=elapsed;
+      traceCount++; localStorage.setItem('traceCount',traceCount);
+      document.getElementById('traceCount').textContent=traceCount;
+    } else {
+      addLog('ERROR: '+JSON.stringify(data),'error');
+      PHASES.forEach(p=>setPhase(p,'idle'));
+    }
+  } catch(e) {
+    addLog('Request failed: '+e.message,'error');
+  } finally {
+    clearInterval(timerInterval);
+    running=false;
+    btn.disabled=false; btn.innerHTML='<span class="btn-icon">⚡</span> Trigger Autonomous Remediation';
+  }
+}
+
+function lineType(line) {
+  if(line.includes('SUCCESS')||line.includes('COMPLETE')||line.includes('PASSED')||line.includes('200 OK')) return 'success';
+  if(line.includes('ERROR')||line.includes('FAIL')||line.includes('failed')) return 'error';
+  if(line.includes('Warning')||line.includes('WARNING')) return 'warn';
+  if(line.includes('===')) return 'section';
+  if(line.includes('[MCP]')||line.includes('[Phase')||line.includes('[Agent')) return 'info';
+  return '';
+}
+</script>
+</body>
+</html>
