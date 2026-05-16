@@ -162,16 +162,24 @@ class StandardMCPClient:
         try:
             import urllib.request
             key = os.getenv("PHOENIX_API_KEY", "").strip('"')
+            endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/aerocaliper")
+            if "/v1/traces" in endpoint_url:
+                endpoint_url = endpoint_url.replace("/v1/traces", "")
+            graphql_url = f"{endpoint_url}/graphql"
+            
             query = '''
             query {
-              node(id: "UHJvamVjdDoz") {
-                ... on Project {
-                  firstSpan: spans(first: 1) {
-                    edges {
-                      node {
-                        id
-                        name
-                        attributes
+              projects {
+                edges {
+                  node {
+                    name
+                    firstSpan: spans(first: 1) {
+                      edges {
+                        node {
+                          id
+                          name
+                          attributes
+                        }
                       }
                     }
                   }
@@ -180,7 +188,7 @@ class StandardMCPClient:
             }
             '''
             req = urllib.request.Request(
-                'https://app.phoenix.arize.com/s/vjbeltrani/graphql',
+                graphql_url,
                 data=json.dumps({'query': query}).encode('utf-8'),
                 headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'}
             )
@@ -190,9 +198,17 @@ class StandardMCPClient:
                     return json.loads(response.read().decode())
             data = await loop.run_in_executor(None, fetch)
             
-            node = data.get('data', {}).get('node', {})
-            if node and 'firstSpan' in node and node['firstSpan']['edges']:
-                span_node = node['firstSpan']['edges'][0]['node']
+            # Find the 'aerocaliper' project
+            edges = data.get('data', {}).get('projects', {}).get('edges', [])
+            span_node = None
+            for edge in edges:
+                if edge.get('node', {}).get('name') == 'aerocaliper':
+                    spans = edge['node'].get('firstSpan', {}).get('edges', [])
+                    if spans:
+                        span_node = spans[0]['node']
+                    break
+                    
+            if span_node:
                 attributes = json.loads(span_node.get('attributes', '{}'))
                 
                 # Format into our required structure
