@@ -21,7 +21,6 @@ tracer_provider = register(
     endpoint=f"{PHOENIX_SPACE_URL}/v1/traces",
     headers={"Authorization": f"Bearer {phoenix_api_key}"},
 )
-tracer = trace.get_tracer("target_agent_tracer", tracer_provider=tracer_provider)
 print(f"[OTel] Registered → {PHOENIX_SPACE_URL} (project: aerocaliper)")
 
 # --- Google Gen AI SDK (Agent Platform) ---
