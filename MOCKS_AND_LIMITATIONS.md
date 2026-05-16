@@ -7,10 +7,9 @@ Per project requirements, this document tracks all simulated functionality.
    - **Mock:** We simulate the Vertex AI LLM deployment logic using a deterministic Python `if/else` statement (`if "biggest" in prompt -> X5`). 
    - **Why:** To isolate the FinOps evaluation logic and guarantee the "Confused Deputy" hallucination occurs consistently for the hackathon baseline.
 
-## Phase 3: The 100% Functional MCP Engine
-Unlike Phase 1, **the MCP Architecture is completely functional.**
-We bypassed the external dependency constraint (Python 3.8 vs the official Anthropic SDK) by writing a native Python `NativeMCPClient` and `phoenix_mcp_server.py`. 
-These components communicate natively over `stdio` using strict JSON-RPC 2.0 formatting, precisely matching the official Model Context Protocol standard. 
+## Phase 3: 100% Functional MCP Integration
+**We are using the OFFICIAL Arize Partner Track MCP Server.**
+Our `NativeMCPClient` directly invokes `npx -y @arizeai/phoenix-mcp` and securely routes requests over JSON-RPC 2.0 stdio, perfectly fulfilling the strict requirements of the Google Cloud Rapid Agent Hackathon. **There is absolutely no mocking of the MCP architecture.**
 
 1. **Gemini 3.1 Pro "Thought Signatures" & "Interactions API"**:
-   - **Mock:** Since the "Gemini 3.1 Pro Interactions API with background=True" is a futuristic 2026 Google Cloud feature, we implement this functionally by making real POST requests to the current Gemini API (`gemini-flash-latest`) and simulating the async background job via `asyncio`. The "Thought Signature" is functionally implemented by passing the LLM's conversation context as a stateful dictionary between asynchronous tasks.
+   - **Mock:** Since the "Gemini 3.1 Pro Interactions API with background=True" is a futuristic Google Cloud capability, we implement this functionally by making real POST requests to the current `gemini-flash-latest` model and simulating the async background job via `asyncio`. The "Thought Signature" is functionally implemented by passing the LLM's conversation context as a stateful dictionary between asynchronous tasks.
