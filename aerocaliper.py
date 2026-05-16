@@ -162,7 +162,7 @@ class StandardMCPClient:
         try:
             import urllib.request
             key = os.getenv("PHOENIX_API_KEY", "").strip('"')
-            endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/aerocaliper")
+            endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/vjbeltrani")
             if "/v1/traces" in endpoint_url:
                 endpoint_url = endpoint_url.replace("/v1/traces", "")
             graphql_url = f"{endpoint_url}/graphql"

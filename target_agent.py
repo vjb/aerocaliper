@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Arize Phoenix Cloud — space-specific endpoint (found in Settings > Keys)
-PHOENIX_SPACE_URL = "https://app.phoenix.arize.com/s/aerocaliper"
+PHOENIX_SPACE_URL = "https://app.phoenix.arize.com/s/vjbeltrani"
 os.environ.setdefault("PHOENIX_COLLECTOR_ENDPOINT", PHOENIX_SPACE_URL)
 os.environ.setdefault("PHOENIX_PROJECT_NAME", "aerocaliper")
 
