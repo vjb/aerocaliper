@@ -115,7 +115,8 @@ class AeroCaliperAgent:
     def __init__(self):
         # Connect to the OFFICIAL Arize MCP
         self.mcp = NativeMCPClient()
-        self.gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+        model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        self.gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
 
     def ask_gemini(self, prompt: str) -> str:
         """Helper to call the real Gemini API."""
