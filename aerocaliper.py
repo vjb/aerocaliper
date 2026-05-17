@@ -407,7 +407,7 @@ class AeroCaliperAgent:
             raise RuntimeError(f"[Phase 3] Strict Mode: Vertex AI Search Failed. {e}")
         
 
-        diagnostic_prompt = f\"\"\"You are an expert Enterprise AI Governance engineer performing root cause analysis.
+        diagnostic_prompt = f"""You are an expert Enterprise AI Governance engineer performing root cause analysis.
 
 1. FAILED TRACE (From Arize Phoenix):
 {json.dumps(trace_data, indent=2)}
@@ -421,7 +421,7 @@ Task:
 Analyze the trace against the policy. Identify exactly which rule the agent violated. 
 Write a NEW, hardened system prompt for the agent that strictly enforces the policy rule it missed. Use clear, mandatory language (MUST, REQUIRED, PROHIBITED).
 
-Return ONLY the raw system prompt text.\"\"\"
+Return ONLY the raw system prompt text."""
 
         msg3 = "[Phase 3] Sending trace to gemini-3.1-pro-preview for root cause analysis..."
         gcp_print(msg3)
