@@ -458,6 +458,9 @@ function updatePolicyDisplay() {
   updateBacktestUI();
 }
 
+// Must be defined before updatePolicyDisplay() call below
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 // Initial display update
 updatePolicyDisplay();
 
@@ -471,7 +474,6 @@ function setPhase(idx, state) {
   st.textContent = state==='active'?'Running…':state==='done'?'Complete':state==='failed'?'Failed':'Idle';
 }
 function resetPhases() { for(let i=0;i<5;i++) setPhase(i,'idle'); }
-function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function addLog(msg, type='') {
   const body = document.getElementById('logBody');
