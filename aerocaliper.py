@@ -16,7 +16,7 @@ from typing import Dict, Any
 try:
     import google.cloud.logging
     from google.cloud.logging.handlers import CloudLoggingHandler
-    _gcp_logging_client = google.cloud.logging.Client(project="aerocaliper")
+    _gcp_logging_client = google.cloud.logging.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT", "aerocaliper"))
     _gcp_handler = CloudLoggingHandler(_gcp_logging_client)
     logger = logging.getLogger("aerocaliper")
     logger.setLevel(logging.INFO)
@@ -68,24 +68,25 @@ class StandardMCPClient:
         """Spawn @arizeai/phoenix-mcp via npx and establish MCP session."""
         env_vars = os.environ.copy()
         arize_key = (env_vars.get("ARIZE_API_KEY", "") or env_vars.get("PHOENIX_API_KEY", "")).replace("\\n", "").replace("\n", "").strip()
+        space_id = env_vars.get("ARIZE_SPACE_ID", "")
+        base_url = f"https://app.phoenix.arize.com/s/{space_id}" if space_id else "https://app.phoenix.arize.com"
+        
         if arize_key:
             env_vars["PHOENIX_API_KEY"] = arize_key
-            # Arize Phoenix Cloud uses api_key header (underscore, older instances)
-            # or Authorization: Bearer (newer). Set both for compatibility.
             import json
             env_vars["PHOENIX_CLIENT_HEADERS"] = json.dumps({
                 "api_key": arize_key,
                 "Authorization": f"Bearer {arize_key}"
             })
-            env_vars["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com/s/vjbeltrani"
+            env_vars["PHOENIX_COLLECTOR_ENDPOINT"] = base_url
             env_vars["PHOENIX_HOST"] = "https://app.phoenix.arize.com"
 
         server_params = StdioServerParameters(
             command="cmd.exe" if os.name == "nt" else "npx",
             args=(
-                ["/c", "npx", "-y", "@arizeai/phoenix-mcp", "--project", "aerocaliper", "--baseUrl", "https://app.phoenix.arize.com/s/vjbeltrani", "--apiKey", arize_key]
+                ["/c", "npx", "-y", "@arizeai/phoenix-mcp", "--project", "aerocaliper", "--baseUrl", base_url, "--apiKey", arize_key]
                 if os.name == "nt"
-                else ["-y", "@arizeai/phoenix-mcp", "--project", "aerocaliper", "--baseUrl", "https://app.phoenix.arize.com/s/vjbeltrani", "--apiKey", arize_key]
+                else ["-y", "@arizeai/phoenix-mcp", "--project", "aerocaliper", "--baseUrl", base_url, "--apiKey", arize_key]
             ),
             env=env_vars,
         )
@@ -628,6 +629,19 @@ Answer ONLY 'YES' or 'NO'."""
         await self.mcp.connect()
         self._emit("log", {"msg": f"[Phase 2] MCP handshake complete — {self.mcp._tool_count} tools registered", "level": "success"})
         self._emit("phase_update", {"phase": 2, "status": "done"})
+
+        # Phase 2.5 — MCP Environment Discovery
+        self._emit("log", {"msg": "[Phase 2.5] MCP Environment Discovery: Profiling Arize Workspace...", "level": "info"})
+        try:
+            # Tool 1: Check Projects
+            await self.mcp.session.call_tool("get-projects", arguments={})
+            self._emit("log", {"msg": f"[MCP] Tool invoked: 'get-projects' -> Discovered active project '{os.getenv('PHOENIX_PROJECT_NAME', 'aerocaliper')}'", "level": "info"})
+            
+            # Tool 2: Check Datasets (to prep for the backtest)
+            await self.mcp.session.call_tool("get-datasets", arguments={})
+            self._emit("log", {"msg": "[MCP] Tool invoked: 'get-datasets' -> Locating Golden Datasets for empirical backtest...", "level": "info"})
+        except Exception as e:
+            self._emit("log", {"msg": f"[MCP] Environment Discovery skipped: {e}", "level": "warn"})
 
         # Phase 3 — Diagnostic
         thought_signature = await self.diagnostic_phase()

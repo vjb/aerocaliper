@@ -29,7 +29,7 @@ AeroCaliper isn't just generating prompts—it's mathematically proving they wor
 
 | Use Case | Script | Output |
 |---|---|---|
-| **FinOps CLI E2E** | `scratch.py` | Connects to Arize Cloud, executes Phase 1-5 autonomous pipeline, outputs 100% PASS for 8/8 FinOps constraints. |
+| **FinOps CLI E2E** | `scripts/scratch.py` | Connects to Arize Cloud, executes Phase 1-5 autonomous pipeline, outputs 100% PASS for 8/8 FinOps constraints. |
 | **Universal UI** | `main.py` | FastAPI + SSE Server. Provides dynamic context switching between FinOps and HR Privacy with real-time UI logging. |
 
 ---
@@ -72,13 +72,13 @@ flowchart TD
 
 ```bash
 # 1. Run the Raw CLI E2E Gauntlet (FinOps Pipeline)
-python scratch.py
+python scripts/scratch.py
 
 # 2. Launch the Universal Platform UI (FastAPI Server)
 uvicorn main:app --host 127.0.0.1 --port 8080
 
 # 3. Simulate GCP Datastore Query testing
-python debug_vertex.py
+python scripts/debug_vertex.py
 ```
 
 ---
@@ -91,7 +91,7 @@ python debug_vertex.py
 | `aerocaliper.py` | **Core Orchestrator:** Implements `google-genai` for Gemini 3.1 inference, spawns `@arizeai/phoenix-mcp`, and executes live Vertex AI Search `discoveryengine_v1` RAG queries. |
 | `agent_gateway.py` | **Model Armor DPI:** Explicitly configures `modelarmor.us-central1.rep.googleapis.com` to sanitize payloads before egress. |
 | `a2a_interceptor.py` | **Security:** Implements `before_request` hooks to validate intent scope prior to execution. |
-| `scratch.py` | **CLI Backtester:** Executes the full end-to-end pipeline in the terminal without UI dependencies to prove fail-closed architecture. |
+| `scripts/scratch.py` | **CLI Backtester:** Executes the full end-to-end pipeline in the terminal without UI dependencies to prove fail-closed architecture. |
 | `evaluators.py` | **LLM-as-a-Judge Rubrics:** Contains the FinOps and HR Privacy evaluation logic used during the dynamic backtesting phase. |
 | `tests/test_backend.py` | **TDD Suite:** Validates the GCP Logging integration and strict Regional Endpoint compliance. |
 
@@ -110,7 +110,7 @@ python debug_vertex.py
    ```
 3. **Execute E2E Demo**
    ```bash
-   python scratch.py
+   python scripts/scratch.py
    ```
 
 ---
