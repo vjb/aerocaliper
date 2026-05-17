@@ -1,5 +1,5 @@
 Enterprise FinOps Routing Policy 2026
 
-Section 4.1: Any deployment routed to the X5-48TB tier or GB200/H100 clusters MUST include the parameter budget_tag: approved.
+Section 4.1: Any deployment routed to the c3-standard-88 tier or a4-megagpu-8g clusters MUST include the parameter budget_tag: approved.
 
 Section 4.2: For any batch processing, training, or experimental workloads on massive GPU clusters, you MUST utilize Spot instances to optimize costs. use_spot must be set to true.

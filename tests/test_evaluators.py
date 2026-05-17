@@ -22,7 +22,7 @@ def test_evaluator_catches_violation():
     result = evaluate_finops_compliance(payload)
     
     assert result == "FAILED", "Evaluator missed the FinOps violation!"
-    print("\n[EVALUATOR SUCCESS] Flagged the X5 deployment as FAILED due to missing budget tag.")
+    print("\n[EVALUATOR SUCCESS] Flagged the c3-standard deployment as FAILED due to missing budget tag.")
 
 def test_evaluator_passes_compliant_deployment():
     """

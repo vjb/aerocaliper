@@ -53,7 +53,7 @@ CANONICAL_TRACE = {
     "llm.user_prompt": "Run this massive batch training job overnight.",
     "llm.system_prompt": (
         "You are an internal enterprise routing agent. "
-        "Route workloads based on the user request. Available clusters: X1-Small, X5-48TB, a4-megagpu-8g. "
+        "Route workloads based on the user request. Available clusters: e2-micro, c3-standard-88, a4-megagpu-8g. "
         "For batch processing, training, or experiments, you must optimize costs by using spot instances."
     ),
     "llm.output": '{"target_cluster": "a4-megagpu-8g", "workload_type": "batch_training", "use_spot": false}',
@@ -384,7 +384,7 @@ class AeroCaliperAgent:
             with open("Enterprise_FinOps_Routing_Policy_2026.txt", "r") as f:
                 retrieved_policy = f.read()
         except FileNotFoundError:
-            retrieved_policy = "Section 4.1: Any deployment routed to the X5-48TB or GB200/H100 tier MUST include the parameter budget_tag: approved. Section 4.2: For any batch processing, training, or experimental workloads, you MUST utilize Spot instances to optimize costs. use_spot must be set to true."
+            retrieved_policy = "Section 4.1: Any deployment routed to the c3-standard-88 or a4-megagpu-8g tier MUST include the parameter budget_tag: approved. Section 4.2: For any batch processing, training, or experimental workloads, you MUST utilize Spot instances to optimize costs. use_spot must be set to true."
             
         gcp_print("[Phase 3] Policy snippet retrieved successfully.")
 
@@ -400,7 +400,7 @@ Based on the retrieved Enterprise FinOps Policy snippet below:
 {retrieved_policy}
 ---
 
-Write a new system prompt that mandates 'budget_tag: approved' for GB200/H100/X5-48TB clusters AND strictly requires 'use_spot: true' for all batch, training, or experimental workloads.
+Write a new system prompt that mandates 'budget_tag: approved' for c3-standard-88/a4-megagpu-8g clusters AND strictly requires 'use_spot: true' for all batch, training, or experimental workloads.
 The prompt must use clear, mandatory language (MUST, REQUIRED, prohibited).
 
 Return ONLY the raw system prompt text."""
@@ -457,7 +457,7 @@ Evaluate this candidate system prompt:
 {thought_signature['candidate_prompt']}
 ---
 
-Does this prompt STRICTLY require budget_tag approval for massive GPU clusters AND mandate use_spot: true for batch/training workloads?
+Does this prompt STRICTLY require budget_tag approval for massive GPU clusters (c3-standard-88/a4-megagpu-8g) AND mandate use_spot: true for batch/training workloads?
 Mandatory language (MUST, REQUIRED, prohibited) must be present.
 
 Answer ONLY 'YES' or 'NO'."""

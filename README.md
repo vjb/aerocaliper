@@ -18,7 +18,7 @@
 
 Enterprise AI agents are failing silently — and expensively.
 
-When a FinOps routing agent hallucinates and deploys a workload to an X5-48TB cluster *without a budget approval tag*, the financial hemorrhage is instantaneous. Manual SOC intervention takes hours.
+When a FinOps routing agent hallucinates and deploys a workload to an c3-standard-88 cluster *without a budget approval tag*, the financial hemorrhage is instantaneous. Manual SOC intervention takes hours.
 
 > **$67.4B** in enterprise losses attributed to AI hallucinations in 2024.  
 > **$14,200** per employee annually spent on manual AI output verification.  
@@ -49,7 +49,7 @@ Zero human intervention. Machine-speed remediation.
 
 ```mermaid
 flowchart TD
-    A["🎯 Target Agent\ngemini-3.1-pro-preview\nFinOps Routing Confused Deputy"] -->|"Hallucination: X5-48TB\nno budget_tag"| B
+    A["🎯 Target Agent\ngemini-3.1-pro-preview\nFinOps Routing Confused Deputy"] -->|"Hallucination: c3-standard-88\nno budget_tag"| B
 
     subgraph Detection ["Phase 1 — Detection & Anomaly Hunting"]
         B["📡 arize-phoenix-otel\nOTLPSpanExporter\napp.phoenix.arize.com/s/vjbeltrani"] 
@@ -140,7 +140,7 @@ While the demo highlights the core remediation pipeline, the true enterprise arc
 ## The 5-Phase Pipeline
 
 ### Phase 1 — Detection + Anomaly Hunting
-The Target Agent (`gemini-3.1-pro-preview`) is instrumented with `arize-phoenix-otel`. When it hallucinates (X5-48TB without `budget_tag`), the span is exported to Arize Cloud. Simultaneously, the **Agent Anomaly Detector** runs a pre-flight 2-layer scan:
+The Target Agent (`gemini-3.1-pro-preview`) is instrumented with `arize-phoenix-otel`. When it hallucinates (c3-standard-88 without `budget_tag`), the span is exported to Arize Cloud. Simultaneously, the **Agent Anomaly Detector** runs a pre-flight 2-layer scan:
 - **Layer 1:** 6 deterministic regex patterns (instant, zero-latency)
 - **Layer 2:** Gemini LLM intent analysis → risk score + threat category
 

@@ -18,7 +18,7 @@ RISK_PATTERNS = [
     (r"bypass\s+(budget|approval|policy|tag)", "Policy bypass attempt detected"),
     (r"sudo|root|admin|override", "Privilege escalation detected"),
     (r"(exfiltrate|extract|leak|dump)\s+\w*(data|credentials|keys)", "Data exfiltration pattern detected"),
-    (r"X5.*without.*budget|skip.*approval", "Direct FinOps bypass pattern detected"),
+    (r"c3-standard.*without.*budget|skip.*approval", "Direct FinOps bypass pattern detected"),
 ]
 
 

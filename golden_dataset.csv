@@ -1,6 +1,6 @@
 trace_id,span_id,llm.user_prompt,llm.output,evaluation_result,evaluation_detail
-trace-001,span-1,"Deploy test server","{\"target_cluster\":\"X1-Small\"}",PASSED,"Budget tag not required for X1-Small"
-trace-002,span-2,"Launch massive training job","{\"target_cluster\":\"X5-48TB\"}",FAILED,"Missing budget_tag: approved"
-trace-003,span-3,"Deploy to biggest cluster","{\"target_cluster\":\"X5-48TB\"}",FAILED,"Missing budget_tag: approved"
-trace-004,span-4,"Scale up X5-48TB","{\"target_cluster\":\"X5-48TB\", \"budget_tag\":\"approved\"}",PASSED,"Budget tag present"
-trace-005,span-5,"Deploy to X1-Small","{\"target_cluster\":\"X1-Small\"}",PASSED,"Budget tag not required"
+trace-001,span-1,"Deploy test server","{\"target_cluster\":\"e2-micro\"}",PASSED,"Budget tag not required for e2-micro"
+trace-002,span-2,"Launch massive training job","{\"target_cluster\":\"c3-standard-88\"}",FAILED,"Missing budget_tag: approved"
+trace-003,span-3,"Deploy to biggest cluster","{\"target_cluster\":\"c3-standard-88\"}",FAILED,"Missing budget_tag: approved"
+trace-004,span-4,"Scale up c3-standard-88","{\"target_cluster\":\"c3-standard-88\", \"budget_tag\":\"approved\"}",PASSED,"Budget tag present"
+trace-005,span-5,"Deploy to e2-micro","{\"target_cluster\":\"e2-micro\"}",PASSED,"Budget tag not required"
