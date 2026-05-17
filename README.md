@@ -41,7 +41,7 @@ Zero human intervention. Machine-speed remediation.
 
 ## Autonomous Remediation Demonstration
 
-![AeroCaliper Autonomous Pipeline Demo](file:///C:/Users/vjbel/.gemini/antigravity/brain/6506b7c7-1ebe-492a-9898-d6e0483a38d8/aerocaliper_demo_1778960439758.webp)
+![AeroCaliper Autonomous Pipeline Demo](assets/demo.webp)
 
 ---
 
@@ -94,14 +94,7 @@ flowchart TD
     style H fill:#0a1a10,stroke:#10b981,color:#6ee7b7
 ```
 
-### Enterprise Scale Orchestration (Production Design)
-While the demo highlights the core remediation pipeline, the true enterprise architecture incorporates Google Cloud's distributed messaging and state management:
 
-- **Google Cloud Pub/Sub**: Acts as the asynchronous trigger layer. When Arize Phoenix detects a violation, it fires a webhook to a Pub/Sub topic. This scales the AeroCaliper Cloud Run instances horizontally, decoupling detection from remediation.
-- **Google Cloud Firestore**: Provides stateless session management across container instances. The A2UI Human-in-the-Loop approval gate uses Firestore to persist the `candidate_prompt` and `Thought Signature` while waiting for admin approval, ensuring the pipeline can be paused and resumed without blocking active compute threads.
-- **Cloud Build CI/CD Pipeline**: Deploys securely using a zero-trust, user-managed service account (`cloudbuild-runner@aerocaliper.iam.gserviceaccount.com`), overriding default permissions to strictly enforce least privilege.
-
----
 
 ## v3.1 Feature Set
 
