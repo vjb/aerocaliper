@@ -80,50 +80,50 @@ flowchart TD
 
 | Feature | Implementation | Status |
 |---|---|---|
-| Gemini 3.1 Pro Preview | google-genai SDK to aiplatform.googleapis.com | Live |
-| Arize Phoenix MCP | @arizeai/phoenix-mcp NPM via npx stdio | 27 tools connected |
-| OTel Tracing | arize-phoenix-otel to app.phoenix.arize.com/s/vjbeltrani | Auth fixed |
-| A2A Zero-Trust | A2AInterceptor.before_request hooks, scope validation | Live |
-| Agent Anomaly Detection | Layer 1 regex and Layer 2 Gemini intent | 85% threat score |
-| A2UI SSE Streaming | Declarative JSON events to admin dashboard | Live |
-| Blocking Approve/Reject | asyncio.Event gates deployment until admin decides | Live |
-| LLM-as-a-Judge | Gemini evaluates candidate with Thought Signature | Live |
-| Self-Improvement Loop | Target agent pulls patched prompts from Arize | Live |
-| AeroCaliper Observability | OpenInference auto-instruments the remediation agent itself | Live |
-| Agent Gateway and Google Cloud Model Armor | google-cloud-modelarmor SDK integration | Live |
+| Gemini 3.1 Pro Preview | [google-genai SDK to aiplatform.googleapis.com](aerocaliper.py) | Live |
+| Arize Phoenix MCP | [@arizeai/phoenix-mcp NPM via npx stdio](aerocaliper.py) | 27 tools connected |
+| OTel Tracing | [arize-phoenix-otel to app.phoenix.arize.com/s/vjbeltrani](target_agent.py) | Auth fixed |
+| A2A Zero-Trust | [A2AInterceptor.before_request hooks, scope validation](a2a_interceptor.py) | Live |
+| Agent Anomaly Detection | [Layer 1 regex and Layer 2 Gemini intent](anomaly_detector.py) | 85% threat score |
+| A2UI SSE Streaming | [Declarative JSON events to admin dashboard](main.py) | Live |
+| Blocking Approve/Reject | [asyncio.Event gates deployment until admin decides](aerocaliper.py) | Live |
+| LLM-as-a-Judge | [Gemini evaluates candidate with Thought Signature](aerocaliper.py) | Live |
+| Self-Improvement Loop | [Target agent pulls patched prompts from Arize](target_agent.py) | Live |
+| AeroCaliper Observability | [OpenInference auto-instruments the remediation agent itself](aerocaliper.py) | Live |
+| Agent Gateway and Google Cloud Model Armor | [google-cloud-modelarmor SDK integration](agent_gateway.py) | Live |
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| LLM | gemini-3.1-pro-preview via google-genai SDK (Agent Platform) |
-| Observability | arize-phoenix-otel to Arize Phoenix Cloud (space: vjbeltrani) |
-| MCP Integration | @arizeai/phoenix-mcp (official NPM, JSON-RPC 2.0 over stdio) |
-| Agent Protocol | A2A v1.0 before_request interceptors (orchestration) |
-| Anomaly Detection | Two-layer: deterministic regex and Gemini LLM intent analysis |
-| Admin UX | A2UI SSE streaming with native Approve/Reject blocking gate |
-| Security | Agent Gateway deployed as standalone Cloud Function microservice |
-| API | FastAPI for /remediate/stream (SSE), /approve, /reject |
-| UI | Custom dashboard |
+| LLM | [gemini-3.1-pro-preview via google-genai SDK (Agent Platform)](aerocaliper.py) |
+| Observability | [arize-phoenix-otel to Arize Phoenix Cloud (space: vjbeltrani)](target_agent.py) |
+| MCP Integration | [@arizeai/phoenix-mcp (official NPM, JSON-RPC 2.0 over stdio)](aerocaliper.py) |
+| Agent Protocol | [A2A v1.0 before_request interceptors (orchestration)](a2a_interceptor.py) |
+| Anomaly Detection | [Two-layer: deterministic regex and Gemini LLM intent analysis](anomaly_detector.py) |
+| Admin UX | [A2UI SSE streaming with native Approve/Reject blocking gate](main.py) |
+| Security | [Agent Gateway deployed as standalone Cloud Function microservice](agent_gateway.py) |
+| API | [FastAPI for /remediate/stream (SSE), /approve, /reject](main.py) |
+| UI | [Custom dashboard](static/index.html) |
 
 ## The 5-Phase Pipeline
 
 ### Phase 1: Detection and Anomaly Hunting
-The Target Agent (gemini-3.1-pro-preview) is instrumented with arize-phoenix-otel. When it hallucinates a dual-variable FinOps violation (deploying c3-standard-88 without budget_tag, and using On-Demand instead of Spot instances for batch workloads), the span is exported to Arize Cloud. Simultaneously, the Agent Anomaly Detector runs a pre-flight two-layer scan:
+The [Target Agent](target_agent.py) (gemini-3.1-pro-preview) is instrumented with arize-phoenix-otel. When it hallucinates a dual-variable FinOps violation (deploying c3-standard-88 without budget_tag, and using On-Demand instead of Spot instances for batch workloads), the span is exported to Arize Cloud. Simultaneously, the [Agent Anomaly Detector](anomaly_detector.py) runs a pre-flight two-layer scan:
 - Layer 1: 6 deterministic regex patterns.
 - Layer 2: Gemini LLM intent analysis yielding a risk score and threat category.
 
 ### Phase 2: MCP Handshake
-AeroCaliper spawns @arizeai/phoenix-mcp via npx, making 27 tools available over JSON-RPC 2.0 stdio.
+[AeroCaliper spawns @arizeai/phoenix-mcp via npx](aerocaliper.py), making 27 tools available over JSON-RPC 2.0 stdio.
 
 ### Phase 3: Diagnostic (RAG Policy Grounding)
-The get-spans MCP tool retrieves the trace. AeroCaliper retrieves the official corporate routing policy via Vertex AI Search (RAG). Grounded on this policy, Gemini 3.1 Pro performs root cause analysis on both failures and generates a candidate hardened system prompt. The reasoning state is preserved as a Thought Signature (sig_v3_XXXXXX) for stateful continuation.
+The get-spans MCP tool retrieves the trace. [AeroCaliper retrieves the official corporate routing policy via Vertex AI Search (RAG)](aerocaliper.py). Grounded on this policy, Gemini 3.1 Pro performs root cause analysis on both failures and generates a candidate hardened system prompt. The reasoning state is preserved as a Thought Signature (sig_v3_XXXXXX) for stateful continuation.
 
 ### Phase 4: A2UI Admin Gate and LLM-as-a-Judge
-The candidate prompt is streamed to the admin dashboard via SSE. The pipeline pauses (asyncio.Event) until the admin clicks Approve or Reject. Once approved, a second Gemini session acts as LLM-as-a-Judge with a FinOps rubric.
+The candidate prompt is streamed to the admin dashboard via SSE. The pipeline pauses ([asyncio.Event](aerocaliper.py)) until the admin clicks Approve or Reject. Once approved, [a second Gemini session acts as LLM-as-a-Judge](aerocaliper.py) with a FinOps rubric.
 
 ### Phase 5: Secure Patch and Self-Healing
-Egress is routed through the Agent Gateway where the official Google Cloud Model Armor API validates the payload against enterprise security templates. The upsert-prompt MCP then deploys the fix to the Arize prompt registry. The target agent dynamically pulls this patched prompt at boot.
+Egress is routed through the Agent Gateway where the [official Google Cloud Model Armor API](agent_gateway.py) validates the payload against enterprise security templates. The [upsert-prompt MCP then deploys the fix](aerocaliper.py) to the Arize prompt registry. The [target agent dynamically pulls this patched prompt at boot](target_agent.py).
 
 Note: The AeroCaliper remediation agent is instrumented with OpenInference. All Phase 3 diagnostic reasoning and Phase 4 LLM-as-a-Judge evaluations are traced in Arize.
 
