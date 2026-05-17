@@ -164,9 +164,11 @@ python target_agent.py
 - [Agent Architecture](docs/agent_architecture.md)
 - [Google Cloud and Arize Integration](docs/google_and_arize_integration.md)
 
-## Known Limitations & Future Work
+## Phase 2 Enterprise Architecture (Roadmap)
 
-See [HACKATHON_ARCHITECTURE_AUDIT.md](HACKATHON_ARCHITECTURE_AUDIT.md) for a full audit of production-ready components. The system utilizes the official `google-cloud-discoveryengine` SDK for Vertex AI Search but includes a graceful degradation path to a local cached policy if the datastore is unreachable. Similarly, it handles Arize API prompt registry instability gracefully while still verifying the MCP round-trip protocol.
+Currently, AeroCaliper utilizes **Arize Phoenix** as its primary observability and analytics control plane for real-time trace telemetry and prompt evaluation. 
+
+For our Phase 2 enterprise rollout, we plan to stream all Model Armor block events and Agent Gateway telemetry directly into **Google BigQuery**. By joining our AI agent telemetry with our GCP Billing Export data natively in BigQuery, we will leverage **Looker** to generate real-time executive dashboards. This will allow the C-Suite to see exactly how many millions of dollars AeroCaliper saved the enterprise by autonomously blocking unapproved cloud infrastructure deployments before they occurred.
 
 ## License
 
