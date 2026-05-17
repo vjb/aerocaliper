@@ -82,7 +82,7 @@ class StandardMCPClient:
     async def connect(self) -> None:
         """Spawn @arizeai/phoenix-mcp via npx and establish MCP session."""
         env_vars = os.environ.copy()
-        arize_key = env_vars.get("ARIZE_API_KEY", "") or env_vars.get("PHOENIX_API_KEY", "")
+        arize_key = (env_vars.get("ARIZE_API_KEY", "") or env_vars.get("PHOENIX_API_KEY", "")).strip()
         if arize_key:
             env_vars["PHOENIX_API_KEY"] = arize_key
             # Arize Phoenix Cloud uses api_key header (underscore, older instances)
@@ -161,7 +161,7 @@ class StandardMCPClient:
         
         try:
             import urllib.request
-            key = os.getenv("PHOENIX_API_KEY", "").strip('"')
+            key = os.getenv("PHOENIX_API_KEY", "").strip('"\r\n\t ')
             endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/vjbeltrani")
             if "/v1/traces" in endpoint_url:
                 endpoint_url = endpoint_url.replace("/v1/traces", "")
@@ -314,7 +314,7 @@ class AeroCaliperAgent:
         self.model = "gemini-3.1-pro-preview"
 
         # Instrument AeroCaliper's internal logic so judges can see the remediation agent's traces
-        phoenix_api_key = os.getenv("PHOENIX_API_KEY", "")
+        phoenix_api_key = os.getenv("PHOENIX_API_KEY", "").strip()
         if phoenix_api_key:
             register(
                 project_name="aerocaliper-remediation-engine",

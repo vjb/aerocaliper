@@ -13,7 +13,7 @@ os.environ.setdefault("PHOENIX_PROJECT_NAME", "aerocaliper")
 from phoenix.otel import register
 from opentelemetry import trace
 
-phoenix_api_key = os.getenv("PHOENIX_API_KEY", "")
+phoenix_api_key = os.getenv("PHOENIX_API_KEY", "").strip()
 
 tracer_provider = register(
     project_name="aerocaliper",
