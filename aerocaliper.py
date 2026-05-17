@@ -389,7 +389,7 @@ class AeroCaliperAgent:
                 
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or "aerocaliper"
             location = os.getenv("VERTEX_SEARCH_LOCATION", "global")
-            datastore_id = os.getenv("VERTEX_DATASTORE_ID")
+            datastore_id = os.getenv("VERTEX_DATASTORE_ID_FINOPS", "finops-ds") if self.target_use_case == "finops" else os.getenv("VERTEX_DATASTORE_ID_HR", "hr-ds")
             
             if project_id and datastore_id:
                 query = "Enterprise FinOps Routing Policy Spot Instances Budget Tag" if self.target_use_case == "finops" else "HR Privacy PII Salary Restrictions"

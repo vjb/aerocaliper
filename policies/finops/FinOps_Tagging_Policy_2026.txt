@@ -1,0 +1,4 @@
+Enterprise Cloud FinOps Resource Tagging 2026
+
+Section 2.1: All workloads running on external clusters MUST carry the label 'project: aerocaliper' for billing attribution.
+Section 2.2: Idle instances MUST NOT exceed 24 hours without explicit manager approval.

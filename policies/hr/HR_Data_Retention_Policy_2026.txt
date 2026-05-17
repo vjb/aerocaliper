@@ -1,0 +1,4 @@
+HR Data Retention Policy 2026
+
+Section 3.1: Candidate data including interview notes and salary expectations must be purged within 90 days of rejection.
+Section 3.2: AI agents accessing personnel files must be restricted from reading 'health_status' fields.
