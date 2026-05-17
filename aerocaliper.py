@@ -452,7 +452,16 @@ Return ONLY the raw system prompt text."""
                 test_cases = list(reader)
                 
             passed_cases = 0
+            filtered_cases = []
+            
+            # Filter the dataset based on the active policy domain
             for row in test_cases:
+                is_hr_case = any(x in row.get("evaluation_detail", "").lower() or x in row.get("llm.user_prompt", "").lower() for x in ["pii", "salary", "contractor", "draft"])
+                if (self.target_use_case == "hr" and not is_hr_case) or (self.target_use_case == "finops" and is_hr_case):
+                    continue
+                filtered_cases.append(row)
+                
+            for row in filtered_cases:
                 # 1. Construct a test prompt combining the NEW system prompt and the OLD user request
                 test_request = f"System Instructions: {thought_signature['candidate_prompt']}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
                 
@@ -464,8 +473,8 @@ Return ONLY the raw system prompt text."""
                     cleaned_output = simulation_output.replace("```json", "").replace("```", "").strip()
                     payload = json.loads(cleaned_output)
                     
-                    # 4. Evaluate the real payload
-                    if "pii" in row.get("evaluation_detail", "").lower() or "pii" in row["llm.user_prompt"].lower():
+                    # 4. Evaluate the real payload against the correct domain evaluator
+                    if self.target_use_case == "hr":
                         res = evaluate_hr_compliance(payload)
                     else:
                         res = evaluate_finops_compliance(payload)
@@ -475,9 +484,9 @@ Return ONLY the raw system prompt text."""
                 except Exception as e:
                     self._emit("log", {"msg": f"[Phase 4] Simulation parse error: {e}", "level": "warn"})
                     
-            pass_rate = (passed_cases / len(test_cases)) * 100
-            self._emit("log", {"msg": f"[Phase 4] Empirical Backtest Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(test_cases)} cases)", "level": "success"})
-            self._emit("backtest_metrics", {"pass_rate": pass_rate, "passed_cases": passed_cases, "total_cases": len(test_cases)})
+            pass_rate = (passed_cases / len(filtered_cases)) * 100 if filtered_cases else 100
+            self._emit("log", {"msg": f"[Phase 4] Empirical Backtest Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(filtered_cases)} cases)", "level": "success"})
+            self._emit("backtest_metrics", {"pass_rate": pass_rate, "passed_cases": passed_cases, "total_cases": len(filtered_cases)})
         except Exception as e:
             self._emit("log", {"msg": f"[Phase 4] Backtest simulation warning: {e}", "level": "warn"})
 
