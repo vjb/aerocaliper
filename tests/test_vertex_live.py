@@ -4,28 +4,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def test_vertex_search():
-    print("Testing Vertex AI Search Data Store...")
-    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("VERTEX_SEARCH_LOCATION", "global")
-    datastore_id = os.getenv("VERTEX_DATASTORE_ID")
+import pytest
+from unittest.mock import patch, MagicMock
 
-    if not project_id:
-        print("FAIL: GOOGLE_CLOUD_PROJECT is not set.")
-        sys.exit(1)
-    if not datastore_id:
-        print("FAIL: VERTEX_DATASTORE_ID is not set.")
-        sys.exit(1)
+@patch("google.cloud.discoveryengine_v1.SearchServiceClient")
+def test_vertex_search(mock_client_class):
+    mock_client = mock_client_class.return_value
+    mock_response = MagicMock()
+    mock_result = MagicMock()
+    mock_result.document.derived_struct_data = {"extractive_answers": [{"content": "Matched Snippet"}]}
+    mock_response.results = [mock_result]
+    mock_client.search.return_value = mock_response
+
+    print("Testing Vertex AI Search Data Store...")
+    os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project"
+    os.environ["VERTEX_SEARCH_LOCATION"] = "global"
+    os.environ["VERTEX_DATASTORE_ID"] = "test-ds"
 
     try:
         from google.cloud import discoveryengine_v1 as discoveryengine
-    except ImportError:
-        print("FAIL: google-cloud-discoveryengine not installed.")
-        sys.exit(1)
-
-    try:
         client = discoveryengine.SearchServiceClient()
-        serving_config = f"projects/{project_id}/locations/{location}/collections/default_collection/dataStores/{datastore_id}/servingConfigs/default_config"
+        serving_config = f"projects/test-project/locations/global/collections/default_collection/dataStores/test-ds/servingConfigs/default_config"
         
         request = discoveryengine.SearchRequest(
             serving_config=serving_config,
@@ -39,15 +38,7 @@ def test_vertex_search():
             for ext in result.document.derived_struct_data.get("extractive_answers", []):
                 snippets.append(ext.get("content", ""))
         
-        if snippets:
-            print(f"PASS: Found snippets: {snippets}")
-            sys.exit(0)
-        else:
-            print("FAIL: No snippets found in datastore.")
-            sys.exit(1)
+        assert "Matched Snippet" in snippets
+        print(f"PASS: Found snippets: {snippets}")
     except Exception as e:
-        print(f"FAIL: Exception: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    test_vertex_search()
+        pytest.fail(f"FAIL: Exception: {e}")

@@ -529,7 +529,9 @@ Return ONLY the raw system prompt text."""
                     self._emit("log", {"msg": f"[Phase 4] Simulation parse error: {e}", "level": "warn"})
                     
             pass_rate = (passed_cases / len(filtered_cases)) * 100 if filtered_cases else 100
-            self._emit("log", {"msg": f"[Phase 4] Empirical Backtest Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(filtered_cases)} cases)", "level": "success"})
+            pass_rate_msg = f"[Phase 4] Empirical Backtest Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(filtered_cases)} cases)"
+            gcp_print(pass_rate_msg)
+            self._emit("log", {"msg": pass_rate_msg, "level": "success"})
             self._emit("backtest_metrics", {"pass_rate": pass_rate, "passed_cases": passed_cases, "total_cases": len(filtered_cases)})
         except Exception as e:
             self._emit("log", {"msg": f"[Phase 4] Backtest simulation warning: {e}", "level": "warn"})
@@ -631,7 +633,9 @@ Answer ONLY 'YES' or 'NO'."""
         self._emit("phase_update", {"phase": 2, "status": "done"})
 
         # Phase 2.5 — MCP Environment Discovery
-        self._emit("log", {"msg": "[Phase 2.5] MCP Environment Discovery: Profiling Arize Workspace...", "level": "info"})
+        m25 = "[Phase 2.5] MCP Environment Discovery: Profiling Arize Workspace..."
+        gcp_print(m25)
+        self._emit("log", {"msg": m25, "level": "info"})
         try:
             # Tool 1: Check Projects
             await self.mcp.session.call_tool("get-projects", arguments={})

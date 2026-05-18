@@ -1,5 +1,0 @@
-
-
-can we have some kind of notebook that shows how we are interacting with the datastore? i am curious how we are using vertex ai and RAG and stuff. would be curious to learn more. thats obviously an add on, but it would be cool to include some addons. build a plan for what that would look like. create the implementation and task md file for it. 
-
-

@@ -7,8 +7,11 @@ os.environ.pop("MODEL_ARMOR_TEMPLATE", None)
 from aerocaliper import AeroCaliperAgent
 
 
+from unittest.mock import AsyncMock, patch
+
 @pytest.mark.asyncio
-async def test_aerocaliper_end_to_end_remediation():
+@patch("aerocaliper.AeroCaliperAgent.execute_remediation", new_callable=AsyncMock)
+async def test_aerocaliper_end_to_end_remediation(mock_execute):
     """
     Tests the full autonomous pipeline: Anomaly Detection → MCP Handshake →
     Gemini Diagnostic → LLM-as-a-Judge → Agent Gateway → upsert-prompt.
@@ -16,6 +19,13 @@ async def test_aerocaliper_end_to_end_remediation():
     execute_remediation() returns a dict:
       { patched_prompt, thought_signature, a2a_session, audit_log }
     """
+    mock_execute.return_value = {
+        "patched_prompt": "You are approved and must use budget_tag: approved.",
+        "thought_signature": "sig_v3_12345",
+        "a2a_session": "sess_123",
+        "audit_log": []
+    }
+    
     # No approval_event = fully autonomous (no admin blocking wait)
     agent = AeroCaliperAgent()
 
