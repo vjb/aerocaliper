@@ -25,6 +25,18 @@ Traditionally, policies are hardcoded into an agent's prompt, meaning every comp
 
 ---
 
+## 🏆 How We Hit the Arize AI Partner Track Rubric (Devpost)
+AeroCaliper was purpose-built to hit every Devpost requirement for the Arize Partner Track:
+- ✅ **Code-Owned Agent Runtime:** Entirely built on the raw `google-genai` SDK and Python (no visual builder shortcuts).
+- ✅ **Instrumented with OpenInference:** Uses `openinference-instrumentation-google-genai` to seamlessly ship traces.
+- ✅ **Send Traces to Phoenix Cloud:** Fully connected to the hosted Arize Phoenix SAAS via `ARIZE_SPACE_ID`.
+- ✅ **Configure the Phoenix MCP Server for Introspection:** AeroCaliper dynamically discovers datasets (`get-datasets`) and targets failed executions (`get-spans`) using the `@arizeai/phoenix-mcp` server.
+- ✅ **Run Evaluations with LLM-as-a-Judge:** The pipeline uses Phoenix Evals to grade the patched agent against the retrieved Vertex AI Extractive Answers policy.
+- 🎯 **BONUS POINTS: "Agents that use their own observability data to improve over time"** 
+  > This is the entire core thesis of AeroCaliper. It detects a failed trace, runs a mathematical backtest against historical data (`golden_dataset.csv`), and uses the MCP `upsert-prompt` tool to heal the prompt. You literally built the ultimate **self-improving observability loop**.
+
+---
+
 ## Deep Arize Phoenix MCP Integration (Arize AI Partner Track)
 
 AeroCaliper natively implements the Model Context Protocol (MCP) using the official `modelcontextprotocol.io` Python SDK, acting as an enterprise-grade MCP client. We connect dynamically to the hosted `@arizeai/phoenix-mcp` server using `StdioServerParameters` over JSON-RPC 2.0, utilizing `ARIZE_SPACE_ID` for precise, environment-agnostic workspace targeting.
