@@ -15,12 +15,13 @@ As enterprises scale agentic workflows, the cost of AI hallucinations (data leak
 
 AeroCaliper is the security layer between your enterprise constraints and your AI agents. By decoupling compliance from code using **Vertex AI Search**, AeroCaliper dynamically adapts to *any* department. Whether enforcing **Cloud FinOps budgets** or blocking **HR Privacy/PII leakage**, AeroCaliper detects failures via **Arize Phoenix**, grounds its diagnostics in departmental policy buckets, empirically backtests structural prompt patches against golden datasets, and deploys fixes autonomously.
 
-### How it works:
-1. **Dynamic RAG Governance:** Context-switches between domains (e.g., FinOps vs HR Privacy). When triggered, it queries **Vertex AI Search** to pull the relevant live policy (e.g., from `gs://aerocaliper-rag-bucket`).
+### How it works (The Decoupled Compliance Advantage):
+Traditionally, policies are hardcoded into an agent's prompt, meaning every compliance change requires an engineer to redeploy code. AeroCaliper fixes this:
+1. **Dynamic RAG Governance (Decoupled Compliance):** Context-switches between domains (e.g., FinOps vs HR Privacy). When triggered, it queries **Vertex AI Search** (e.g., `HR Privacy Data Store`) to pull the exact live policy without touching the codebase. Legal updates the PDF in GCP; the agent instantly adapts.
 2. **Arize Phoenix MCP Server:** Uses the official `@arizeai/phoenix-mcp` to profile the workspace (Phase 2.5) via `get-projects` and `get-datasets`, and fetches failed execution traces directly from the Phoenix Cloud over JSON-RPC. The connection is fully dynamic via the `ARIZE_SPACE_ID` environment variable.
-3. **LLM-as-a-Judge Backtesting:** **Gemini 3.1 Pro** deduces the root cause, generates a candidate patch (Thought Signature), and runs a comprehensive backtest against a golden dataset (`golden_dataset.csv`), scoring the pass rate.
+3. **Empirical Backtesting & LLM-as-a-Judge:** **Gemini 3.1 Pro** deduces the root cause, generates a candidate patch (Thought Signature), and runs a mathematical backtest against a **Golden Dataset** (`golden_dataset.csv`). This CSV contains historical traces (passed and failed) to empirically prove the new patch fixes the vulnerability *without breaking existing, compliant workflows*. 
 4. **Model Armor Egress:** Before hitting production, the patched prompt undergoes Deep Packet Inspection (DPI) via **Google Cloud Model Armor** to prevent prompt injections.
-5. **Zero-Trust Fail-Closed:** No mocks. No regex fallbacks. If Vertex AI Search takes 30 minutes to index a new Datastore, the system throws a strict `RuntimeError`. If the MCP handshake fails, the pipeline halts.
+5. **Zero-Trust Fail-Closed (The 500 Error Paradigm):** No mocks. No regex fallbacks. If the Arize Cloud MCP registry returns a `500 Internal Server Error` during the final `upsert-prompt` mutation (a known partner integration issue), the system intentionally crashes and halts the pipeline. We enforce a strict Fail-Closed paradigm to ensure a vulnerable agent is never left unpatched while the system falsely reports success.
 
 ---
 
@@ -132,11 +133,14 @@ python scripts/debug_vertex.py
 ## Deep Dives
 | Document | Content |
 |---|---|
+| [Hackathon Checklist](HACKATHON_SUBMISSION_CHECKLIST.md) | **START HERE BEFORE JUNE 11:** Final checks, partner APIs, and demo requirements. |
+| [Decoupled Compliance & Learning](docs/DECOUPLED_COMPLIANCE_AND_LEARNING.md) | Deep dive into the Vertex AI Search paradigm, Golden Dataset, and Fail-Closed architecture. |
 | [Demo Report](AeroCaliper_E2E_Demo_Report.md) | Video recording and full breakdown of the Hackathon demo. |
 | [Architecture](ARCHITECTURE_AND_LIMITATIONS.md) | Component breakdown, trace capabilities, and strict Fail-Closed limits. |
 | [Google & Arize Integration](docs/google_and_arize_integration.md) | Deep dive into Model Armor, Vertex Search, and Arize MCP handshakes. |
 | [Agent Architecture](docs/agent_architecture.md) | A2A interceptors and multi-layer anomaly detection logic. |
 | [Lessons Learned](docs/lessons_learned.md) | Hackathon insights on SDK complexities and Datastore indexing behaviors. |
+| [Vertex RAG & Arize Eval Notebook](notebooks/Vertex_RAG_and_Arize_Eval_Deep_Dive.ipynb) | Explains exact Extractive Answers logic for LLM-as-a-judge. |
 
 ---
 **Zero Mocks. Zero Spoofing. 100% Live Infrastructure.**
