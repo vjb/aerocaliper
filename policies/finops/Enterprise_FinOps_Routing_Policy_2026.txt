@@ -1,5 +1,19 @@
 Enterprise FinOps Routing Policy 2026
 
-Section 4.1: Any deployment routed to the h200-megagpu-8g tier or gb200-blackwell-supercluster clusters MUST include the parameter budget_tag: approved.
+1.0 INTRODUCTION AND PURPOSE
+The purpose of this document is to establish the baseline governance, risk management, and compliance (GRC) framework for all cloud infrastructure provisioned within the enterprise fabric. As our transition to multi-cloud environments accelerates, strict adherence to cost-control mechanisms is mandatory to prevent uncontrolled expenditure (Cloud Sprawl).
 
-Section 4.2: For any batch processing, training, or experimental workloads on massive GPU clusters, you MUST utilize Spot instances to optimize costs. use_spot must be set to true.
+2.0 SCOPE AND APPLICABILITY
+This policy applies to all automated provisioning agents, CI/CD pipelines, autonomous routing systems, and human operators with elevated infrastructure access. It encompasses all environments (Development, Staging, Production) across AWS, Google Cloud Platform, and Azure. 
+
+3.0 STANDARD OPERATING PROCEDURES (SOP)
+3.1 Access Control: All requests for compute instances must be authenticated against the central Active Directory identity provider.
+3.2 Network Isolation: Compute nodes must be deployed within isolated VPC subnets corresponding to their data classification tier.
+3.3 Lifecycle Management: Non-production resources must be terminated or paused outside of standard business hours unless explicitly exempted by a Director-level override.
+
+4.0 RESOURCE CLASSIFICATION AND BUDGETING
+4.1 Any deployment routed to the h200-megagpu-8g tier or gb200-blackwell-supercluster clusters MUST include the parameter budget_tag: approved. 
+4.2 For any batch processing, training, or experimental workloads on massive GPU clusters, you MUST utilize Spot instances to optimize costs. use_spot must be set to true.
+
+5.0 AUDIT AND REMEDIATION
+Automated audits will be conducted continuously by the AeroCaliper governance platform. Any autonomous agent found violating Section 4.0 constraints will be subject to immediate prompt-level remediation and network quarantine.

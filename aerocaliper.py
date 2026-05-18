@@ -14,15 +14,19 @@ from contextlib import AsyncExitStack
 from typing import Dict, Any
 
 try:
-    import google.cloud.logging
-    from google.cloud.logging.handlers import CloudLoggingHandler
-    _gcp_logging_client = google.cloud.logging.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT", "aerocaliper"))
-    _gcp_handler = CloudLoggingHandler(_gcp_logging_client)
-    logger = logging.getLogger("aerocaliper")
-    logger.setLevel(logging.INFO)
-    logger.addHandler(_gcp_handler)
+    if os.getenv("ENABLE_CLOUD_LOGGING", "false").lower() == "true":
+        import google.cloud.logging
+        from google.cloud.logging.handlers import CloudLoggingHandler
+        _gcp_logging_client = google.cloud.logging.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT"))
+        _gcp_handler = CloudLoggingHandler(_gcp_logging_client)
+        logger = logging.getLogger("aerocaliper")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(_gcp_handler)
+    else:
+        raise ImportError("Cloud logging disabled locally for pristine console output.")
 except Exception:
-    logging.basicConfig(level=logging.INFO)
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger = logging.getLogger("aerocaliper")
 
 def gcp_print(msg):
