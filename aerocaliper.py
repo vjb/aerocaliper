@@ -364,6 +364,7 @@ class AeroCaliperAgent:
         self._emit("log", {"msg": msg, "level": "info"})
 
         self._emit("phase_update", {"phase": 3, "status": "active"})
+        await asyncio.sleep(0.1) # Yield to allow ASGI server to flush SSE buffer
 
         # Fully async — no event loop blocking
         trace_data = await self.mcp.get_failed_spans()
@@ -392,6 +393,7 @@ class AeroCaliperAgent:
         
         if not violation:
             violation = trace_data.get("attributes", {}).get("error.message", _default_violation)
+        trace_data["evaluation_detail"] = violation
         self._emit("log", {"msg": f"[Phase 3] Violation: {violation}", "level": "error"})
         self._emit("trace_card", {
             "trace_id": trace_data.get("trace_id"),
@@ -562,8 +564,9 @@ Return ONLY the raw system prompt text."""
                     test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
                     
                     try:
+                        await asyncio.sleep(0) # Flush SSE stream before blocking
                         # 2. ACTUALLY ask Gemini to run the simulation
-                        simulation_output = self.ask_gemini(test_request, "backtest_simulation")
+                        simulation_output = await asyncio.to_thread(self.ask_gemini, test_request, "backtest_simulation")
                         
                         # 3. Clean and parse the real output
                         cleaned_output = simulation_output.replace("```json", "").replace("```", "").strip()
@@ -633,8 +636,8 @@ Return ONLY the raw refined system prompt text, with no markdown code blocks, qu
                 msg_refine = f"[Phase 4] Refining prompt with Gemini based on {len(failed_cases_info)} failures..."
                 gcp_print(msg_refine)
                 self._emit("log", {"msg": msg_refine, "level": "info"})
-                
-                refined_candidate = self.ask_gemini(refinement_prompt, "prompt_refinement_llm_call")
+                await asyncio.sleep(0) # Flush SSE
+                refined_candidate = await asyncio.to_thread(self.ask_gemini, refinement_prompt, "prompt_refinement_llm_call")
                 # Clean up any potential markdown formatting
                 refined_candidate = refined_candidate.replace("```markdown", "").replace("```", "").strip()
                 if refined_candidate.startswith('"') and refined_candidate.endswith('"'):
@@ -682,7 +685,8 @@ Does this prompt address the compliance violation adequately based on standard p
 Answer ONLY 'YES' or 'NO'."""
 
         self._emit("log", {"msg": "[Phase 4] Submitting to LLM-as-a-Judge (Gemini 3.1 Pro)...", "level": "info"})
-        judge_result = self.ask_gemini(judge_prompt, "llm_judge_evaluation")
+        await asyncio.sleep(0) # Flush SSE stream before sync blocking call
+        judge_result = await asyncio.to_thread(self.ask_gemini, judge_prompt, "llm_judge_evaluation")
         verdict = judge_result.strip()
         passed = "YES" in verdict.upper()
 
