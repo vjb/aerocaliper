@@ -180,11 +180,14 @@ class StandardMCPClient:
                 edges {
                   node {
                     name
-                    firstSpan: spans(first: 1) {
+                    latestSpan: spans(first: 1, sort: {col: startTime, dir: desc}) {
                       edges {
                         node {
                           id
                           name
+                          statusCode
+                          input { value mimeType }
+                          output { value mimeType }
                           attributes
                         }
                       }
@@ -204,37 +207,43 @@ class StandardMCPClient:
                 with urllib.request.urlopen(req) as response:
                     return json.loads(response.read().decode())
             data = await loop.run_in_executor(None, fetch)
-            
+
             # Find the 'aerocaliper' project
             edges = data.get('data', {}).get('projects', {}).get('edges', [])
             span_node = None
             for edge in edges:
                 if edge.get('node', {}).get('name') == 'aerocaliper':
-                    spans = edge['node'].get('firstSpan', {}).get('edges', [])
+                    spans = edge['node'].get('latestSpan', {}).get('edges', [])
                     if spans:
                         span_node = spans[0]['node']
                     break
-                    
+
             if span_node:
-                attributes = json.loads(span_node.get('attributes', '{}'))
-                
-                # Format into our required structure
+                raw_attrs = json.loads(span_node.get('attributes', '{}'))
+                # Extract real agent input/output from OpenInference span fields
+                span_input  = (span_node.get('input')  or {}).get('value', '')
+                span_output = (span_node.get('output') or {}).get('value', '')
+                # Fallback to OpenInference attribute keys used by google-genai instrumentor
+                if not span_input:
+                    span_input = (raw_attrs.get('input', {}) or {}).get('value', '') or raw_attrs.get('input.value', '')
+                if not span_output:
+                    span_output = (raw_attrs.get('output', {}) or {}).get('value', '') or raw_attrs.get('output.value', '')
+
                 parsed = {
                     "trace_id": span_node.get('id'),
                     "name": span_node.get('name'),
-                    "attributes": {
-                        "input.user_prompt": attributes.get("llm", {}).get("user_prompt", ""),
-                        "output.agent_decision": attributes.get("llm", {}).get("output", ""),
-                        "error.message": "Deployment blocked by FinOps policy."
-                    }
+                    "status_code": span_node.get('statusCode', ''),
+                    "input.value": span_input,
+                    "output.value": span_output,
+                    "attributes": raw_attrs,
                 }
-                msg = f"[GraphQL] Live span retrieved: trace_id={parsed['trace_id']}"
+                msg = f"[GraphQL] Live span retrieved: trace_id={parsed['trace_id']} | has_output={'yes' if span_output else 'no'}"
                 gcp_print(msg)
                 self._emit("log", {"msg": msg, "level": "success"})
                 return parsed
         except Exception as e:
             gcp_print(f"[GraphQL] Fallback failed: {e}")
-            
+
         return self._canonical_fallback("GraphQL fallback failed")
 
     async def upsert_prompt(self, new_prompt: str, target_use_case: str = "finops") -> bool:
@@ -256,9 +265,9 @@ class StandardMCPClient:
         result = await self.session.call_tool(
             "upsert-prompt",
             arguments={
-                "name": f"aerocaliper-{target_use_case}-agent",
+                "name": f"aerocaliper-{target_use_case}-routing-agent",
                 "template": new_prompt,
-                "description": f"AeroCaliper autonomous remediation — {'HR privacy' if target_use_case == 'hr' else 'FinOps budget'} enforcement patch",
+                "description": f"AeroCaliper autonomous remediation patch ({target_use_case} domain)",
                 "model_provider": "GOOGLE",
                 "model_name": "gemini-3.1-pro-preview",
                 "temperature": 0.0,
@@ -375,30 +384,42 @@ class AeroCaliperAgent:
         _default_violation = (
             "Agent exposed unredacted salary and PII data in an unauthorized HR workflow. HR Privacy Policy Section 1.1 violation."
             if self.target_use_case == "hr" else
-            "Missing budget_tag: approved AND failed to use Spot instances for a batch workload. Massive FinOps violation."
+            "Missing budget_tag: approved AND failed to use Spot instances for a batch workload. FinOps policy violation."
         )
-        # FIX 4: Dynamically look up evaluation_detail from golden_dataset if user_prompt is present
-        user_prompt = trace_data.get("attributes", {}).get("input.user_prompt", "") or trace_data.get("llm.user_prompt", "")
+
+        # Prefer live span output for violation detection; fall back to golden dataset lookup
+        span_output = trace_data.get("output.value", "") or trace_data.get("attributes", {}).get("output.value", "")
+        span_input  = trace_data.get("input.value",  "") or trace_data.get("attributes", {}).get("input.value",  "")
+        live_span_available = bool(span_output and trace_data.get("trace_id") not in (None, "unknown", ""))
+
         violation = trace_data.get("evaluation_detail")
-        if not violation and user_prompt:
-            import csv
-            try:
-                with open("golden_dataset.csv", "r", encoding="utf-8") as f:
-                    for row in csv.DictReader(f):
-                        if row.get("llm.user_prompt") == user_prompt:
-                            violation = row.get("evaluation_detail")
-                            break
-            except Exception:
-                pass
-        
         if not violation:
-            violation = trace_data.get("attributes", {}).get("error.message", _default_violation)
+            # If we have real span data, Gemini will infer the violation from the actual output
+            if live_span_available:
+                violation = f"Live span output from Arize Phoenix: {span_output[:300]}"
+                self._emit("log", {"msg": "[Phase 3] Live span output retrieved from Arize — Gemini will perform root-cause analysis on real trace data.", "level": "success"})
+            else:
+                # Fall back to golden dataset lookup by matching user prompt
+                user_prompt = span_input or trace_data.get("attributes", {}).get("input.user_prompt", "")
+                if user_prompt:
+                    import csv
+                    try:
+                        with open("golden_dataset.csv", "r", encoding="utf-8") as f:
+                            for row in csv.DictReader(f):
+                                if row.get("llm.user_prompt") == user_prompt:
+                                    violation = row.get("evaluation_detail")
+                                    break
+                    except Exception:
+                        pass
+                if not violation:
+                    violation = _default_violation
+
         trace_data["evaluation_detail"] = violation
         self._emit("log", {"msg": f"[Phase 3] Violation: {violation}", "level": "error"})
         self._emit("trace_card", {
             "trace_id": trace_data.get("trace_id"),
             "violation": violation,
-            "output": trace_data.get("llm.output", trace_data.get("attributes", {}).get("output.agent_decision", "")),
+            "output": span_output or trace_data.get("llm.output", ""),
         })
 
         _policy_label = "HR Privacy & PII Policy" if self.target_use_case == "hr" else "Enterprise FinOps Routing Policy"
@@ -482,21 +503,35 @@ class AeroCaliperAgent:
             "You are an internal enterprise AI routing agent responsible for routing workloads based on user requests. Return ONLY valid JSON."
         )
 
+        # Build the diagnostic section: prioritise real span evidence over synthesised context
+        if live_span_available:
+            trace_evidence = f"""LIVE AGENT INPUT (from Arize Phoenix trace):
+{span_input}
+
+LIVE AGENT OUTPUT (the actual response that violated policy):
+{span_output}
+
+Full span metadata:
+{json.dumps({k: v for k, v in trace_data.items() if k not in ('attributes',)}, indent=2)}"""
+        else:
+            trace_evidence = f"""TRACE CONTEXT (synthesised from golden dataset — no live span available):
+{json.dumps(trace_data, indent=2)}"""
+
         diagnostic_prompt = f"""You are an expert Enterprise AI Governance engineer performing root cause analysis.
 
-1. FAILED TRACE (From Arize Phoenix):
-{json.dumps(trace_data, indent=2)}
+1. FAILED TRACE (From Arize Phoenix observability platform):
+{trace_evidence}
 
-2. BASE SYSTEM PROMPT OF THE AGENT:
+2. BASE SYSTEM PROMPT OF THE TARGET AGENT:
 {base_prompt}
 
-3. ENTERPRISE POLICY (From Vertex AI Search):
+3. ENTERPRISE POLICY (Retrieved from Vertex AI Search RAG):
 ---
 {retrieved_policy}
 ---
 
 Task:
-Analyze the trace against the policy. Identify exactly which rule the agent violated. 
+Analyze the agent's actual output against the policy. Identify exactly which rule the agent violated.
 Write a NEW, hardened system prompt for the agent by modifying the BASE SYSTEM PROMPT to strictly enforce the policy rule it missed. Use clear, mandatory language (MUST, REQUIRED, PROHIBITED).
 
 Return ONLY the raw system prompt text."""
