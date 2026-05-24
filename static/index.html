@@ -454,6 +454,10 @@ function updatePolicyDisplay() {
       label.textContent = "FinOps Use Case (Budget tag test cases):";
     }
   }
+  const backtestDropdown = document.getElementById('backtestPolicyDropdown');
+  if (backtestDropdown) {
+    backtestDropdown.value = policy;
+  }
   // Update the Before prompt and reset the After panel so judge sees clean state per domain
   const beforeEl = document.getElementById('promptBefore');
   if (beforeEl) {
