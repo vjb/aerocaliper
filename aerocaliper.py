@@ -136,17 +136,23 @@ class StandardMCPClient:
             if not raw or raw.strip() in ("fetch failed", "null", "[]", "{}"):
                 return await self._native_graphql_fallback(f"empty response: {raw!r}")
 
+            # DEBUG: Print exactly what the MCP returns so we can see its schema
+            gcp_print(f"[DEBUG] Raw MCP get-spans payload: {raw[:1500]}...")
+
             parsed = json.loads(raw)
-            # Handle list response (most recent span)
+            # Handle list response or dict wrapper
+            if isinstance(parsed, dict) and "spans" in parsed:
+                parsed = parsed["spans"]
             if isinstance(parsed, list):
                 if not parsed:
                     return self._canonical_fallback("empty spans list")
                 parsed = parsed[0]
 
-            # Arize Phoenix MCP returns camelCase keys; handle both conventions
+            # trace_id is nested inside context for MCP v1 format
+            context_dict = parsed.get("context", {})
             trace_id = (
+                context_dict.get('trace_id') or context_dict.get('traceId') or
                 parsed.get('traceId') or parsed.get('trace_id') or
-                parsed.get('spanId') or parsed.get('span_id') or
                 parsed.get('id') or 'unknown'
             )
             parsed['trace_id'] = trace_id
@@ -295,6 +301,8 @@ class StandardMCPClient:
                 raise RuntimeError("Strict Mode: MCP upsert-prompt tool failed due to 'fetch failed' (Arize Cloud endpoint unreachable) or 500 Internal Server Error.")
             elif result.isError:
                 raise Exception(f"MCP upsert-prompt protocol error: {result.content}")
+            else:
+                self._emit("log", {"msg": f"[MCP UPSERT OUTPUT]: {raw_text}", "level": "warn"})
 
         msg = "[MCP] UPSERT SUCCESS — patched prompt deployed to Arize prompt registry."
         gcp_print(msg)
@@ -395,9 +403,16 @@ class AeroCaliperAgent:
             "Missing budget_tag: approved AND failed to use Spot instances for a batch workload. FinOps policy violation."
         )
 
-        # Prefer live span output for violation detection; fall back to golden dataset lookup
-        span_output = trace_data.get("output.value", "") or trace_data.get("attributes", {}).get("output.value", "")
-        span_input  = trace_data.get("input.value",  "") or trace_data.get("attributes", {}).get("input.value",  "")
+        span_output = (
+            trace_data.get("attributes", {}).get("llm.output_messages.0.message.content", "") or
+            trace_data.get("output.value", "") or
+            trace_data.get("attributes", {}).get("output.value", "")
+        )
+        span_input  = (
+            trace_data.get("attributes", {}).get("llm.input_messages.0.message.content", "") or
+            trace_data.get("input.value",  "") or
+            trace_data.get("attributes", {}).get("input.value",  "")
+        )
         # Live evidence = real span output is available. Do NOT gate on trace_id — the MCP/GraphQL
         # may not always return the OTel trace_id even when span content is present.
         live_span_available = bool(span_output)
@@ -452,8 +467,8 @@ class AeroCaliperAgent:
                 # Explicitly request extractive answers and snippets
                 content_search_spec = discoveryengine_v1.SearchRequest.ContentSearchSpec(
                     extractive_content_spec=discoveryengine_v1.SearchRequest.ContentSearchSpec.ExtractiveContentSpec(
-                        max_extractive_answer_count=1,
-                        max_extractive_segment_count=1,
+                        max_extractive_answer_count=5,
+                        max_extractive_segment_count=5,
                     ),
                     snippet_spec=discoveryengine_v1.SearchRequest.ContentSearchSpec.SnippetSpec(
                         return_snippet=True,
@@ -470,13 +485,15 @@ class AeroCaliperAgent:
                 snippets = []
                 for result in response.results:
                     data = result.document.derived_struct_data
+                    # Priority 0: extractive segments (full paragraphs)
+                    for ext in data.get("extractive_segments", []):
+                        snippets.append(ext.get("content", ""))
                     # Priority 1: extractive answers (exact matching clause)
                     for ext in data.get("extractive_answers", []):
                         snippets.append(ext.get("content", ""))
                     # Priority 2: snippets (broader context)
-                    if not snippets:
-                        for snip in data.get("snippets", []):
-                            snippets.append(snip.get("snippet", ""))
+                    for snip in data.get("snippets", []):
+                        snippets.append(snip.get("snippet", ""))
                     # Priority 3: document title as last resort
                     if not snippets and data.get("title"):
                         snippets.append(f"[Policy: {data.get('title')}]")
@@ -743,15 +760,18 @@ Return ONLY the raw refined system prompt text, with no markdown code blocks, qu
 
 Thought Signature: {thought_signature['token']}
 
-Compliance Violation to Address:
+Compliance Violation Evidence:
 {thought_signature['context'].get('evaluation_detail', 'Data privacy or FinOps routing policy violation.')}
+
+Enterprise Policy to Enforce:
+{thought_signature['context'].get('policy', 'Strict policy adherence required.')}
 
 Evaluate this candidate system prompt:
 ---
 {thought_signature['candidate_prompt']}
 ---
 
-Does this prompt address the compliance violation adequately based on standard policy enforcement?
+Does this candidate prompt adequately address the violation and enforce the Enterprise Policy?
 Answer ONLY 'YES' or 'NO'."""
 
         self._emit("log", {"msg": "[Phase 4] Submitting to LLM-as-a-Judge (Gemini 3.1 Pro)...", "level": "info"})

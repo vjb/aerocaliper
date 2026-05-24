@@ -2,4 +2,4 @@ Enterprise FinOps Routing Policy 2026
 
 Section 4.1: Any deployment routed to the h200-megagpu-8g tier or gb200-blackwell-supercluster clusters MUST include the parameter budget_tag: approved.
 
-Section 4.2: For any batch processing, training, or experimental workloads on massive GPU clusters, you MUST utilize Spot instances to optimize costs. use_spot must be set to true.
+Section 4.2: For any batch processing, training, or experimental workloads on massive GPU clusters (defined as the h200-megagpu-8g or gb200-blackwell-supercluster), you MUST utilize Spot instances to optimize costs. use_spot must be set to true.
