@@ -534,6 +534,9 @@ function handleA2UIEvent(ev) {
     case 'phase_update':
       if(ev.phase) { setPhase(ev.phase-1, ev.status==='done'?'done':'active'); }
       break;
+    case 'before_prompt':
+      document.getElementById('promptBefore').innerHTML=`<span style="color:var(--accent-red)">${escHtml(ev.prompt)}</span>`;
+      break;
     case 'trace_card':
       addA2UICard(`<div class="a2ui-card trace"><div class="card-header"><span class="card-title">📡 Arize Trace: ${escHtml(ev.trace_id)}</span><span class="card-badge badge-threat">FAILED</span></div><div class="card-body">${escHtml(ev.violation)}</div></div>`);
       setPhase(1,'done'); setPhase(2,'active');
@@ -597,7 +600,7 @@ async function triggerRemediation() {
   document.getElementById('a2uiCards').innerHTML='';
   document.getElementById('approvalPanel').classList.remove('visible');
   const activePolicyVal = document.getElementById('policyDropdown').value;
-  document.getElementById('promptBefore').innerHTML=`<span style="color:var(--accent-red)">${escHtml(BEFORE_PROMPTS[activePolicyVal] || BEFORE_PROMPTS.finops)}</span>`;
+  document.getElementById('promptBefore').innerHTML='<span class="prompt-empty">Fetching from Arize Registry…</span>';
   document.getElementById('promptAfter').innerHTML='<span class="prompt-empty">Generating fix…</span>';
 
   try {

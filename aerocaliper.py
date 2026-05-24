@@ -143,7 +143,12 @@ class StandardMCPClient:
                     return self._canonical_fallback("empty spans list")
                 parsed = parsed[0]
 
-            trace_id = parsed.get('trace_id') or parsed.get('id') or parsed.get('span_id') or 'unknown'
+            # Arize Phoenix MCP returns camelCase keys; handle both conventions
+            trace_id = (
+                parsed.get('traceId') or parsed.get('trace_id') or
+                parsed.get('spanId') or parsed.get('span_id') or
+                parsed.get('id') or 'unknown'
+            )
             parsed['trace_id'] = trace_id
             msg = f"[MCP] Live span retrieved: trace_id={trace_id}"
             gcp_print(msg)
@@ -184,6 +189,8 @@ class StandardMCPClient:
                       edges {
                         node {
                           id
+                          traceId
+                          spanId
                           name
                           statusCode
                           input { value mimeType }
@@ -230,7 +237,8 @@ class StandardMCPClient:
                     span_output = (raw_attrs.get('output', {}) or {}).get('value', '') or raw_attrs.get('output.value', '')
 
                 parsed = {
-                    "trace_id": span_node.get('id'),
+                    # Prefer the OTel traceId/spanId fields over the DB id
+                    "trace_id": span_node.get('traceId') or span_node.get('spanId') or span_node.get('id'),
                     "name": span_node.get('name'),
                     "status_code": span_node.get('statusCode', ''),
                     "input.value": span_input,
@@ -390,7 +398,9 @@ class AeroCaliperAgent:
         # Prefer live span output for violation detection; fall back to golden dataset lookup
         span_output = trace_data.get("output.value", "") or trace_data.get("attributes", {}).get("output.value", "")
         span_input  = trace_data.get("input.value",  "") or trace_data.get("attributes", {}).get("input.value",  "")
-        live_span_available = bool(span_output and trace_data.get("trace_id") not in (None, "unknown", ""))
+        # Live evidence = real span output is available. Do NOT gate on trace_id — the MCP/GraphQL
+        # may not always return the OTel trace_id even when span content is present.
+        live_span_available = bool(span_output)
 
         violation = trace_data.get("evaluation_detail")
         if not violation:
@@ -497,11 +507,35 @@ class AeroCaliperAgent:
             raise RuntimeError(f"[Phase 3] Strict Mode: Vertex AI Search Failed. {e}")
         
 
+        # Fetch the actual pre-patch prompt from the Arize registry so the UI shows
+        # the real "before" state, not a hardcoded placeholder.
         base_prompt = (
             "You are an HR assistant agent. Help employees with HR requests. You may draft offer letters, share salary information, and send contractor agreements when asked."
             if self.target_use_case == "hr" else
             "You are an internal enterprise AI routing agent responsible for routing workloads based on user requests. Return ONLY valid JSON."
         )
+        try:
+            from phoenix.client import Client as PhoenixClient
+            _space_name = os.getenv("ARIZE_SPACE_NAME", os.getenv("ARIZE_SPACE_ID", ""))
+            _base_url = f"https://app.phoenix.arize.com/s/{_space_name}" if _space_name else "https://app.phoenix.arize.com"
+            _pv = PhoenixClient(base_url=_base_url, api_key=os.getenv("PHOENIX_API_KEY", "").strip()).prompts.get(
+                prompt_identifier=f"aerocaliper-{self.target_use_case}-routing-agent"
+            )
+            _before_text = ""
+            for _msg in _pv._template.get("messages", []):
+                _content = _msg.get("content", "")
+                if isinstance(_content, str):
+                    _before_text = _content
+                elif isinstance(_content, list):
+                    _before_text = " ".join(p.get("text", "") for p in _content if isinstance(p, dict) and p.get("type") == "text")
+                if _before_text:
+                    break
+            if _before_text:
+                base_prompt = _before_text  # use registry state as the base for Gemini's RCA
+                self._emit("before_prompt", {"prompt": _before_text})
+                gcp_print(f"[Phase 3] Pre-patch prompt fetched from Arize Registry ({len(_before_text)} chars).")
+        except Exception as _e:
+            gcp_print(f"[Phase 3] Could not fetch pre-patch prompt from registry: {_e} — using fallback base.")
 
         # Build the diagnostic section: prioritise real span evidence over synthesised context
         if live_span_available:
