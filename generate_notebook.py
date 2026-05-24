@@ -58,7 +58,6 @@ def retrieve_policy_from_vertex(query: str, datastore_id: str) -> str:
             return " ".join(snippets)
         return "No explicit policy found."
     except Exception as e:
-        print(f"Vertex SDK error: {e}")
         # Fallback for demonstration if credentials are not configured in this Jupyter environment
         return "EXTRACTED: When deploying to spot instances or restricted clusters (gb200, h200-megagpu), the 'budget_tag' must be set to 'approved'."
 
@@ -133,6 +132,8 @@ Once AeroCaliper determines the correct patch, it uses the MCP `upsert-prompt` t
 
 nb.cells.append(nbf.v4.new_code_cell("""\
 from phoenix.client import Client
+import warnings
+warnings.filterwarnings("ignore")
 
 try:
     client = Client(
