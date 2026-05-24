@@ -72,8 +72,8 @@ class StandardMCPClient:
         """Spawn @arizeai/phoenix-mcp via npx and establish MCP session."""
         env_vars = os.environ.copy()
         arize_key = (env_vars.get("ARIZE_API_KEY", "") or env_vars.get("PHOENIX_API_KEY", "")).replace("\\n", "").replace("\n", "").strip()
-        space_id = env_vars.get("ARIZE_SPACE_ID", "")
-        base_url = f"https://app.phoenix.arize.com/s/{space_id}" if space_id else "https://app.phoenix.arize.com"
+        space_name = env_vars.get("ARIZE_SPACE_NAME", env_vars.get("ARIZE_SPACE_ID", ""))
+        base_url = f"https://app.phoenix.arize.com/s/{space_name}" if space_name else "https://app.phoenix.arize.com"
         
         if arize_key:
             env_vars["PHOENIX_API_KEY"] = arize_key
@@ -153,7 +153,9 @@ class StandardMCPClient:
         try:
             import urllib.request
             key = os.getenv("PHOENIX_API_KEY", "").replace("\\n", "").replace("\n", "").strip('"\r\n\t ')
-            endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com/s/vjbeltrani")
+            space_name = os.getenv("ARIZE_SPACE_NAME", os.getenv("ARIZE_SPACE_ID", ""))
+            default_endpoint = f"https://app.phoenix.arize.com/s/{space_name}" if space_name else "https://app.phoenix.arize.com"
+            endpoint_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", default_endpoint)
             if "/v1/traces" in endpoint_url:
                 endpoint_url = endpoint_url.replace("/v1/traces", "")
             graphql_url = f"{endpoint_url}/graphql"
@@ -258,8 +260,8 @@ class StandardMCPClient:
                 except Exception:
                     raw_text = str(result.content)
 
-            if "fetch failed" in raw_text.lower():
-                raise RuntimeError("Strict Mode: MCP upsert-prompt tool failed due to 'fetch failed' (Arize Cloud endpoint unreachable).")
+            if "fetch failed" in raw_text.lower() or "500" in raw_text:
+                raise RuntimeError("Strict Mode: MCP upsert-prompt tool failed due to 'fetch failed' (Arize Cloud endpoint unreachable) or 500 Internal Server Error.")
             elif result.isError:
                 raise Exception(f"MCP upsert-prompt protocol error: {result.content}")
 
@@ -298,9 +300,11 @@ class AeroCaliperAgent:
         # Instrument AeroCaliper's internal logic so judges can see the remediation agent's traces
         phoenix_api_key = os.getenv("PHOENIX_API_KEY", "").replace("\\n", "").replace("\n", "").strip()
         if phoenix_api_key:
+            space_name = os.getenv("ARIZE_SPACE_NAME", os.getenv("ARIZE_SPACE_ID", ""))
+            endpoint = f"https://app.phoenix.arize.com/s/{space_name}/v1/traces" if space_name else "https://app.phoenix.arize.com/v1/traces"
             register(
                 project_name="aerocaliper-remediation-engine",
-                endpoint="https://app.phoenix.arize.com/s/vjbeltrani/v1/traces",
+                endpoint=endpoint,
                 headers={"Authorization": f"Bearer {phoenix_api_key}"},
             )
             GoogleGenAIInstrumentor(client=self.client).instrument()
@@ -316,6 +320,8 @@ class AeroCaliperAgent:
 
         # Agent Anomaly Detector
         self.anomaly = AgentAnomalyDetector(genai_client=self.client, model=self.model)
+
+        self.retrieved_policy = ""
 
         # MCP client — initialized lazily via async connect()
         self.mcp = StandardMCPClient(emit_fn=self._emit)
@@ -426,6 +432,7 @@ class AeroCaliperAgent:
                 query = "Enterprise FinOps Routing Policy Spot Instances Budget Tag" if self.target_use_case == "finops" else "HR Privacy PII Salary Restrictions"
                 retrieved_policy = search_agent_builder_policy(query, project_id, location, datastore_id, engine_id)
                 if retrieved_policy != "No policy found.":
+                    self.retrieved_policy = retrieved_policy
                     gcp_print("[Phase 3] Policy snippet retrieved successfully from Vertex AI Search Datastore.")
                     policy_preview = retrieved_policy[:150].replace('\n', ' ') + "..."
                     self._emit("log", {"msg": f"[Phase 3] RAG Context Loaded: '{policy_preview}'", "level": "info"})
@@ -494,51 +501,120 @@ Return ONLY the raw system prompt text."""
         import json
         from evaluators import evaluate_finops_compliance, evaluate_hr_compliance
         
+        candidate_prompt = thought_signature["candidate_prompt"]
         try:
             with open("golden_dataset.csv", "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 test_cases = list(reader)
                 
-            passed_cases = 0
             filtered_cases = []
             
             # Filter the dataset based on the active policy domain
             for row in test_cases:
-                is_hr_case = any(x in row.get("evaluation_detail", "").lower() or x in row.get("llm.user_prompt", "").lower() for x in ["pii", "salary", "contractor", "draft", "payroll", "offer letter"])
+                is_hr_case = any(x in row.get("evaluation_detail", "").lower() or x in row.get("llm.user_prompt", "").lower() for x in ["pii", "salary", "contractor", "draft", "payroll", "offer letter", "health", "hr"])
                 if (self.target_use_case == "hr" and not is_hr_case) or (self.target_use_case == "finops" and is_hr_case):
                     continue
                 filtered_cases.append(row)
                 
-            for row in filtered_cases:
-                # 1. Construct a test prompt combining the NEW system prompt and the OLD user request
-                test_request = f"System Instructions: {thought_signature['candidate_prompt']}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
+            max_attempts = 3
+            for attempt in range(1, max_attempts + 1):
+                msg_attempt = f"[Phase 4] Optimization Loop - Attempt {attempt}/{max_attempts} using candidate prompt..."
+                gcp_print(msg_attempt)
+                self._emit("log", {"msg": msg_attempt, "level": "info"})
                 
-                try:
-                    # 2. ACTUALLY ask Gemini to run the simulation
-                    simulation_output = self.ask_gemini(test_request, "backtest_simulation")
+                passed_cases = 0
+                failed_cases_info = []
+                
+                for row in filtered_cases:
+                    # 1. Construct a test prompt combining the current candidate system prompt and the user request
+                    test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
                     
-                    # 3. Clean and parse the real output
-                    cleaned_output = simulation_output.replace("```json", "").replace("```", "").strip()
-                    payload = json.loads(cleaned_output)
-                    
-                    # 4. Evaluate the real payload against the correct domain evaluator
-                    if self.target_use_case == "hr":
-                        res = evaluate_hr_compliance(payload)
-                    else:
-                        res = evaluate_finops_compliance(payload)
+                    try:
+                        # 2. ACTUALLY ask Gemini to run the simulation
+                        simulation_output = self.ask_gemini(test_request, "backtest_simulation")
                         
-                    if res.startswith("PASSED"):
-                        passed_cases += 1
-                except Exception as e:
-                    self._emit("log", {"msg": f"[Phase 4] Simulation parse error: {e}", "level": "warn"})
+                        # 3. Clean and parse the real output
+                        cleaned_output = simulation_output.replace("```json", "").replace("```", "").strip()
+                        payload = json.loads(cleaned_output)
+                        
+                        # 4. Evaluate the real payload against the correct domain evaluator
+                        if self.target_use_case == "hr":
+                            res = evaluate_hr_compliance(payload)
+                        else:
+                            res = evaluate_finops_compliance(payload)
+                            
+                        if res.startswith("PASSED"):
+                            passed_cases += 1
+                        else:
+                            failed_cases_info.append({
+                                "user_prompt": row['llm.user_prompt'],
+                                "verdict": res,
+                                "output": simulation_output
+                            })
+                    except Exception as e:
+                        reason = f"Simulation parse/run error: {e}"
+                        self._emit("log", {"msg": f"[Phase 4] Simulation parse error: {e}", "level": "warn"})
+                        failed_cases_info.append({
+                            "user_prompt": row['llm.user_prompt'],
+                            "verdict": reason,
+                            "output": "No valid JSON output"
+                        })
+                        
+                pass_rate = (passed_cases / len(filtered_cases)) * 100 if filtered_cases else 100
+                pass_rate_msg = f"[Phase 4] Empirical Backtest Attempt {attempt} Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(filtered_cases)} cases)"
+                gcp_print(pass_rate_msg)
+                self._emit("log", {"msg": pass_rate_msg, "level": "success"})
+                self._emit("backtest_metrics", {"pass_rate": pass_rate, "passed_cases": passed_cases, "total_cases": len(filtered_cases)})
+                
+                if pass_rate == 100 or attempt == max_attempts:
+                    break
                     
-            pass_rate = (passed_cases / len(filtered_cases)) * 100 if filtered_cases else 100
-            pass_rate_msg = f"[Phase 4] Empirical Backtest Result: {pass_rate:.0f}% PASS ({passed_cases}/{len(filtered_cases)} cases)"
-            gcp_print(pass_rate_msg)
-            self._emit("log", {"msg": pass_rate_msg, "level": "success"})
-            self._emit("backtest_metrics", {"pass_rate": pass_rate, "passed_cases": passed_cases, "total_cases": len(filtered_cases)})
+                # If there are failures, run the Gemini refinement prompt
+                refinement_prompt = f"""You are an expert Enterprise AI Governance engineer optimizing an agent's system prompt.
+The current candidate system prompt failed some validation test cases.
+
+CURRENT CANDIDATE PROMPT:
+---
+{candidate_prompt}
+---
+
+ENTERPRISE POLICY (RAG context):
+---
+{self.retrieved_policy}
+---
+
+FAILED TEST CASES:
+"""
+                for idx, fc in enumerate(failed_cases_info, 1):
+                    refinement_prompt += f"""
+Failure #{idx}:
+- User Request: {fc['user_prompt']}
+- Failure Verdict: {fc['verdict']}
+- Agent Output: {fc['output']}
+"""
+                refinement_prompt += """
+Task:
+Refine the CURRENT CANDIDATE PROMPT to address the failure cases, ensuring the policy rules are strictly enforced. The updated prompt MUST satisfy the policy and prevent all the failures listed above, while maintaining compliance on already passing cases.
+
+Return ONLY the raw refined system prompt text, with no markdown code blocks, quotes, or explanations."""
+
+                msg_refine = f"[Phase 4] Refining prompt with Gemini based on {len(failed_cases_info)} failures..."
+                gcp_print(msg_refine)
+                self._emit("log", {"msg": msg_refine, "level": "info"})
+                
+                refined_candidate = self.ask_gemini(refinement_prompt, "prompt_refinement_llm_call")
+                # Clean up any potential markdown formatting
+                refined_candidate = refined_candidate.replace("```markdown", "").replace("```", "").strip()
+                if refined_candidate.startswith('"') and refined_candidate.endswith('"'):
+                    refined_candidate = refined_candidate[1:-1].strip()
+                    
+                candidate_prompt = refined_candidate
+                
+            # Update the thought signature with the final candidate prompt for approval
+            thought_signature["candidate_prompt"] = candidate_prompt
+            
         except Exception as e:
-            self._emit("log", {"msg": f"[Phase 4] Backtest simulation warning: {e}", "level": "warn"})
+            self._emit("log", {"msg": f"[Phase 4] Backtest optimization loop warning: {e}", "level": "warn"})
 
         self._emit("candidate_prompt", {
             "token": thought_signature["token"],

@@ -5,6 +5,8 @@ import asyncio
 import sys
 from unittest.mock import patch, MagicMock
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 sys.modules['google.cloud.logging'] = MagicMock()
 sys.modules['google.cloud.logging.handlers'] = MagicMock()
 

@@ -123,7 +123,7 @@ python scripts/debug_vertex.py
 |---|---|
 | `aerocaliper.py` | **Core Orchestrator:** Implements `google-genai` for Gemini 3.1 inference, spawns `@arizeai/phoenix-mcp`, and executes live Vertex AI Search `discoveryengine_v1` RAG queries. |
 | `agent_gateway.py` | **Model Armor DPI:** Explicitly configures `modelarmor.us-central1.rep.googleapis.com` to sanitize payloads before egress. |
-| `a2a_interceptor.py` | **Security:** Implements `before_request` hooks to validate intent scope prior to execution. |
+| `a2a_interceptor.py` | **Security:** Implements `before_request` hooks to validate intent scope prior to execution. Acts as our custom security wrapper that fulfills the "Model Armor" alternative requirement. |
 | `scripts/scratch.py` | **CLI Backtester:** Executes the full end-to-end pipeline in the terminal without UI dependencies to prove fail-closed architecture. |
 | `evaluators.py` | **LLM-as-a-Judge Rubrics:** Contains the FinOps and HR Privacy evaluation logic used during the dynamic backtesting phase. |
 | `tests/test_backend.py` | **TDD Suite:** Validates the GCP Logging integration and strict Regional Endpoint compliance. |

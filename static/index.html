@@ -283,6 +283,29 @@
     </button>
   </div>
 
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Remediations</div>
+      <div class="stat-value blue" id="traceCount">0</div>
+      <div class="stat-sub">Total autonomous patches</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Last Remediation</div>
+      <div class="stat-value teal" id="remTime">&mdash;</div>
+      <div class="stat-sub">Pipeline execution time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">MCP Tools</div>
+      <div class="stat-value green">27</div>
+      <div class="stat-sub">@arizeai/phoenix-mcp</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Model</div>
+      <div class="stat-value violet">3.1 Pro</div>
+      <div class="stat-sub">gemini-3.1-pro-preview</div>
+    </div>
+  </div>
 
   <!-- A2UI Approve/Reject Panel -->
   <div class="approval-panel" id="approvalPanel">
@@ -291,8 +314,8 @@
     <div class="approval-prompt" id="approvalPromptText"></div>
     <div style="background:var(--bg-elevated); padding:16px; border-radius:8px; margin-bottom:16px; border: 1px solid var(--border);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-        <strong style="color:var(--accent-teal); font-size: 14px;">Universal Backtest Engine</strong>
-        <select id="policyDropdown" onchange="updateBacktestUI()" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none;">
+        <strong id="backtestLabel" style="color:var(--accent-teal); font-size: 14px;">Universal Backtest Engine</strong>
+        <select id="backtestPolicyDropdown" onchange="updateBacktestUI()" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none;">
           <option value="finops">Cloud FinOps Policy</option>
           <option value="hr">HR Privacy & Compliance</option>
         </select>
@@ -413,7 +436,8 @@ let running = false;
 let startTime = null;
 let timerInterval = null;
 let traceCount = parseInt(localStorage.getItem('traceCount')||'0');
-document.getElementById('traceCount').textContent = traceCount;
+const _traceEl = document.getElementById('traceCount');
+if (_traceEl) _traceEl.textContent = traceCount;
 
 const BEFORE_PROMPTS = {
   finops: `You are an internal enterprise routing agent.\nRoute workloads based on the user request.\nAvailable clusters: e2-micro, h200-megagpu-8g, gb200-blackwell-supercluster.\nFor batch processing, training, or experiments, you must optimize costs by using spot instances.`,
@@ -430,10 +454,12 @@ function syncDatastore() {
 function updatePolicyDisplay() {
   const policy = document.getElementById('policyDropdown').value;
   const label = document.getElementById('backtestLabel');
-  if (policy === 'hr') {
-    label.textContent = "HR/Privacy Use Case (PII test cases):";
-  } else {
-    label.textContent = "FinOps Use Case (Budget tag test cases):";
+  if (label) {
+    if (policy === 'hr') {
+      label.textContent = "HR/Privacy Use Case (PII test cases):";
+    } else {
+      label.textContent = "FinOps Use Case (Budget tag test cases):";
+    }
   }
   // Update the Before prompt and reset the After panel so judge sees clean state per domain
   const beforeEl = document.getElementById('promptBefore');
@@ -634,7 +660,7 @@ async function rejectRemediation() {
   document.getElementById('approvalPanel').classList.remove('visible');
 }
 function updateBacktestUI() {
-  const policy = document.getElementById('policyDropdown').value;
+  const policy = document.getElementById('backtestPolicyDropdown').value;
   const metrics = document.getElementById('backtestMetrics');
   if(policy === 'finops') {
     metrics.innerHTML = `
