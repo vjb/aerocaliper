@@ -1,75 +1,115 @@
 # Google Cloud and Arize Integration
 
-AeroCaliper integrates Google Cloud Platform services with Arize Phoenix observability to create a fully autonomous, production-grade AI governance pipeline.
+Version: v4.0 -- Last audited: 2026-05-24
 
-Last audited: 2026-05-24, Version: v4.0 Universal
+---
 
-## Google Cloud Technologies Utilized
+## Google Cloud Technologies
 
-1. **Google Agent Platform SDK (`google-genai`)**
-   - The system utilizes the official Gemini API SDK for all LLM inference.
-   - Models are executed via the `google-genai` client with Vertex AI routing for security and scale.
-   - Gemini drives four distinct operations: root-cause analysis (Phase 3), backtest simulation (Phase 4), prompt refinement (Phase 4 optimization loop), and LLM-as-a-Judge evaluation (Phase 4 final gate).
+### 1. Gemini Inference (google-genai SDK)
 
-2. **Google Cloud Run**
-   - The primary remediation engine is containerized (`Dockerfile`) and hosted on Cloud Run.
-   - Cloud Run fulfills the requirement for a Code-Owned Agent Runtime, allowing OpenTelemetry trace instrumentation via `arize-phoenix-otel`.
+All LLM inference is executed via HTTPS POST to `aiplatform.googleapis.com` using the `google-genai` SDK. Gemini drives four distinct operations within the pipeline:
 
-3. **Google Secret Manager**
-   - API keys (`GOOGLE_AGENT_PLATFORM_API_KEY`, `PHOENIX_API_KEY`) are stored encrypted at rest.
-   - Cloud Run injects these secrets as environment variables during runtime, avoiding local file leakage in production environments.
+- Phase 3: Root-cause analysis of the failed agent trace combined with the Vertex AI Search policy snippet.
+- Phase 4 (simulation): Backtesting each golden dataset case against the candidate prompt.
+- Phase 4 (refinement): Generating a revised candidate prompt when backtesting cases fail.
+- Phase 4 (judge): Evaluating the approved candidate prompt against the compliance rubric.
 
-4. **Google Cloud Logging**
-   - Standard stdout is dual-routed: `gcp_print()` in `aerocaliper.py` simultaneously prints locally and sends to Google Cloud Logging via the `google-cloud-logging` SDK.
-   - Structured log shipping is gated by the `ENABLE_CLOUD_LOGGING=true` environment variable, defaulting to clean local console output during development.
+All Gemini calls in async execution paths are wrapped in `asyncio.to_thread()` to prevent blocking the FastAPI event loop and stalling the SSE stream.
 
-5. **Google Cloud Model Armor**
-   - The egress DPI mechanism in `agent_gateway.py` uses the `google-cloud-modelarmor` SDK targeting the regional endpoint `modelarmor.us-central1.rep.googleapis.com`.
-   - The `SanitizeUserPrompt` API validates the candidate patch against an enterprise security template before it can reach the Arize Prompt Registry.
-   - **Strict Mode:** If the SDK, project ID, or template ID are absent, `AgentGatewaySimulator.__init__()` raises a `RuntimeError` immediately. There is no local regex fallback or mock mode.
-   - If a `GATEWAY_URL` env var is set, `aerocaliper.py` routes the payload to an external HTTP-triggered **Google Cloud Function** (2nd Gen) for distributed validation, implementing a distributed microservice architecture.
+### 2. Vertex AI Search (RAG)
 
-6. **Gemini CLI Config**
-   - A native `gemini-cli-config.json` file configures the `@arizeai/phoenix-mcp` within the Gemini CLI for developer interactions and testing.
+Two Vertex AI Search engines are provisioned:
 
-7. **Google Cloud Build (CI/CD)**
-   - Continuous deployment is managed by Cloud Build triggers (`cloudbuild.yaml`).
-   - Builds execute using a dedicated, least-privilege user-managed service account (`cloudbuild-runner@aerocaliper.iam.gserviceaccount.com`).
-   - The runner is granted minimal scoped roles: `roles/artifactregistry.writer`, `roles/run.admin`, `roles/storage.admin`, `roles/logging.logWriter`, and `roles/iam.serviceAccountUser`.
+- `finops-app`: Indexes the Enterprise FinOps Routing Policy document.
+- `hr-app`: Indexes the Enterprise HR Privacy and PII Policy document.
 
-8. **Vertex AI Search (RAG)**
-   - AeroCaliper implements Retrieval-Augmented Generation to dynamically fetch enterprise policies.
-   - Two Vertex AI Search engines are provisioned: `finops-app` (FinOps Policy Datastore) and `hr-app` (HR Privacy Datastore).
-   - The `discoveryengine_v1.SearchServiceClient` is used with engine-level serving configs to enable **Extractive Answers** — returning exact policy clauses rather than broad document chunks.
-   - If the datastore returns 0 snippets (e.g., due to the 10–30 minute indexing delay for newly uploaded documents), the pipeline throws a `RuntimeError`. There is no hardcoded policy fallback.
-   - The active datastore is selected at runtime via `target_use_case` (`finops` → `VERTEX_ENGINE_ID_FINOPS`, `hr` → `VERTEX_ENGINE_ID_HR`).
+Queries use `discoveryengine_v1.SearchServiceClient` targeting engine-level serving configs (`/engines/{engine_id}/servingConfigs/default_config`) to enable Extractive Answers. Datastore-level serving configs do not return extractive answer content. The distinction is required for this feature.
+
+The active engine is selected at runtime from `VERTEX_ENGINE_ID_FINOPS` or `VERTEX_ENGINE_ID_HR` based on `target_use_case`. If the query returns zero snippets, the pipeline raises `RuntimeError`. Documents imported to a datastore require 10 to 30 minutes to index before queries return results.
+
+### 3. Google Cloud Model Armor
+
+`agent_gateway.py` uses the `google-cloud-modelarmor` SDK to submit the candidate prompt to the `SanitizeUserPrompt` API before deployment. The SDK is configured with:
+
+```python
+ClientOptions(api_endpoint="modelarmor.us-central1.rep.googleapis.com")
+```
+
+The template ID is read from `MODEL_ARMOR_TEMPLATE`. If the SDK, GCP project ID, or template ID are absent at initialization, `AgentGatewaySimulator.__init__()` raises `RuntimeError`. There is no local regex fallback.
+
+Template propagation delay: Templates created via SDK or console may not be immediately available. A delay of several minutes may be required before the template is queryable at the regional endpoint.
+
+If `GATEWAY_URL` is set, the payload is additionally forwarded to an external HTTP-triggered Cloud Function (2nd Gen) before the MCP upsert.
+
+### 4. Google Cloud Logging
+
+`gcp_print()` in `aerocaliper.py` routes output to both `stdout` and the `google-cloud-logging` SDK simultaneously. Cloud Logging export is gated by `ENABLE_CLOUD_LOGGING=true`. When this variable is absent or false, only `stdout` is used, which avoids credential noise during local development.
+
+### 5. Google Cloud Run
+
+The pipeline is containerized via `Dockerfile` and deployed to Cloud Run. Cloud Run injects secrets from Google Secret Manager as environment variables (`GOOGLE_AGENT_PLATFORM_API_KEY`, `PHOENIX_API_KEY`) at runtime. This avoids storing credentials in the container image or local files.
+
+### 6. Cloud Build CI/CD
+
+`cloudbuild.yaml` defines the build and deployment pipeline. Builds execute using a dedicated service account (`cloudbuild-runner@aerocaliper.iam.gserviceaccount.com`) with the following roles only:
+
+- `roles/artifactregistry.writer`
+- `roles/run.admin`
+- `roles/storage.admin`
+- `roles/logging.logWriter`
+- `roles/iam.serviceAccountUser`
+
+### 7. Gemini CLI Configuration
+
+`gemini-cli-config.json` configures the `@arizeai/phoenix-mcp` server within the Gemini CLI for local developer testing.
 
 ---
 
 ## Arize Phoenix Integration
 
-1. **Trace Exporting (OTLP)**
-   - Both the Target Agent (`target_agent.py`) and AeroCaliper's remediation engine (`aerocaliper.py`) are instrumented using `arize-phoenix-otel` and `openinference-instrumentation-google-genai`.
-   - Traces are exported to the Arize Phoenix Cloud (`app.phoenix.arize.com`) under separate projects (`aerocaliper` for the target agent, `aerocaliper-remediation-engine` for the orchestrator).
-   - The OTLP endpoint is dynamically constructed using `ARIZE_SPACE_ID`: `https://app.phoenix.arize.com/s/{space_id}/v1/traces`.
+### 1. OTLP Trace Export
 
-2. **Arize MCP Server**
-   - AeroCaliper spawns `@arizeai/phoenix-mcp` programmatically using the official `modelcontextprotocol.io` Python SDK (`mcp.ClientSession`, `StdioServerParameters`).
-   - On Windows, the server is launched via `cmd.exe /c npx`; on Unix via `npx` directly.
-   - Authentication uses a dynamically injected `--baseUrl` (from `ARIZE_SPACE_ID`) and `--apiKey` (from `PHOENIX_API_KEY` or `ARIZE_API_KEY`).
-   - **Phase 2.5** executes `get-projects` and `get-datasets` to profile the workspace environment before any trace data is fetched.
+Both `target_agent.py` and `aerocaliper.py` are instrumented with `arize-phoenix-otel` and `openinference-instrumentation-google-genai`. Traces are exported via OTLP HTTP to:
 
-3. **Span Fetching with GraphQL Fallback**
-   - Phase 3 calls `get-spans` via MCP to retrieve the most recent failed execution trace.
-   - If the MCP tool returns an empty response or a transport error, the system executes a native GraphQL fallback query directly against the Arize Phoenix API (`/graphql`), targeting the `aerocaliper` project.
-   - If both the MCP call and the GraphQL fallback fail, the system raises a `RuntimeError` (fail-closed).
+```
+https://app.phoenix.arize.com/s/{ARIZE_SPACE_ID}/v1/traces
+```
 
-4. **Autonomous Patching and The Self-Improvement Loop**
-   - Following admin approval and LLM-as-a-Judge validation, AeroCaliper calls `upsert-prompt` via MCP to deploy a hardened system prompt directly to the Arize Prompt Registry.
-   - The UI reflects this continuous evolution with a live ✨ **Self-Improvement Loop Active** status badge.
-   - The Target Agent dynamically pulls this new prompt on reboot via `get_prompt()` from the Phoenix client SDK (`from phoenix.client import Client`).
-   - If `upsert-prompt` returns `fetch failed` or a `500` status, the system raises a `RuntimeError` (fail-closed). The patch is never silently abandoned.
+The target agent exports to the `aerocaliper` project. The remediation engine exports to `aerocaliper-remediation-engine`. The OTLP endpoint is constructed dynamically from `ARIZE_SPACE_ID` at runtime.
 
-5. **Live Evaluations**
-   - An LLM-as-a-Judge evaluation pipeline assesses historical traces inside the Phoenix workspace to measure execution accuracy over time across multiple use cases (FinOps, Privacy).
-   - Evaluation rubrics are defined in `evaluators.py` and graded by a separate Gemini session using the Vertex AI-extracted policy as the ground truth.
+### 2. MCP Server Connection
+
+`aerocaliper.py` spawns `@arizeai/phoenix-mcp` using `mcp.ClientSession` and `StdioServerParameters` from the `modelcontextprotocol.io` Python SDK. The server process is started with:
+
+- Windows: `command="cmd.exe"`, `args=["/c", "npx", "-y", "@arizeai/phoenix-mcp", "--baseUrl", ..., "--apiKey", ...]`
+- Unix: `command="npx"`, `args=["-y", "@arizeai/phoenix-mcp", ...]`
+
+The `--baseUrl` is constructed from `ARIZE_SPACE_ID`. The `--apiKey` is read from `PHOENIX_API_KEY` or `ARIZE_API_KEY`.
+
+### 3. MCP Tool Usage
+
+| Tool | Phase | Behavior on Failure |
+|---|---|---|
+| `get-projects` | 2.5 | Logs result; does not fail-close on its own |
+| `get-datasets` | 2.5 | Logs result; does not fail-close on its own |
+| `get-spans` | 3 | Falls back to GraphQL query; raises `RuntimeError` if both fail |
+| `upsert-prompt` | 5 | Raises `RuntimeError` on HTTP 500 or `fetch failed` |
+
+### 4. GraphQL Span Fallback
+
+If `get-spans` returns an empty list or a transport error, `aerocaliper.py` sends a GraphQL query directly to `https://app.phoenix.arize.com/graphql` targeting the `aerocaliper` project. This query retrieves the most recent span nodes. If the GraphQL query also returns no results, the pipeline raises `RuntimeError`.
+
+### 5. Prompt Registry
+
+`upsert-prompt` writes the verified candidate patch to the Arize Prompt Registry under the identifier `aerocaliper-finops-routing-agent` (FinOps domain) or `aerocaliper-hr-routing-agent` (HR domain). The target agent reads from this identifier at boot via:
+
+```python
+client.prompts.get(prompt_identifier=f"aerocaliper-{use_case}-routing-agent")
+```
+
+If the identifier does not exist in the registry, the target agent falls back to a hardcoded placeholder prompt and logs a warning. Traces are still exported correctly in this state.
+
+### 6. LLM-as-a-Judge via Phoenix Evaluations
+
+The Phase 4 judge uses the Vertex AI Search extractive answer retrieved in Phase 3 as the ground truth compliance clause. A separate Gemini session receives the universal rubric, the policy clause, and the candidate prompt, and returns a binary `YES` or `NO` verdict. Evaluation rubrics for both domains are defined in `evaluators.py`.

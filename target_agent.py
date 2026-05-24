@@ -42,10 +42,7 @@ class TargetAgent:
             if not Client:
                 raise ImportError("Phoenix Client is not available.")
             client = Client()
-            try:
-                prompt_obj = client.prompts.get(name=f"aerocaliper-{use_case}-agent")
-            except TypeError:
-                prompt_obj = client.prompts.get(f"aerocaliper-{use_case}-agent")
+            prompt_obj = client.prompts.get(prompt_identifier=f"aerocaliper-{use_case}-routing-agent")
             self.system_prompt = prompt_obj.template
             print(f"[Target Agent] Booted with LIVE prompt from Arize Registry ({use_case}).")
         except Exception as e:

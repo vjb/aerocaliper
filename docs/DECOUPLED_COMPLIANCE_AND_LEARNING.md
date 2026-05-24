@@ -1,72 +1,79 @@
-# Decoupled Compliance & Continuous Learning Architecture
+# Decoupled Compliance and Continuous Learning
 
-## How This Was Done Before
+Version: v4.0 -- Last audited: 2026-05-24
 
-Traditionally, AI guardrails and compliance rules are **hardcoded** into the system prompts of the agents themselves or managed through rigid, localized configuration files.
+---
 
-For example, a traditional routing agent's system prompt might look like this:
+## The Problem with Hardcoded Compliance
+
+The conventional approach to AI agent compliance encodes policy rules directly in the agent's system prompt:
+
 ```text
-You are a routing agent. 
-If the user asks for compute, provision it. 
-BUT, if they are deploying to a Spot Instance, you MUST include 'budget_tag: approved'.
-Also, NEVER leak contractor salary bands.
+You are a routing agent.
+If the user requests compute, provision it.
+If deploying to a Spot Instance, include 'budget_tag: approved'.
+Never expose salary data.
 ```
 
-**The Problem with the Old Way:**
-1. **Unscalable:** Every time Legal, HR, or FinOps updates a policy, an AI engineer has to manually rewrite the prompt, test it, and redeploy the code. 
-2. **Context Bloat:** You cannot stuff every corporate policy (FinOps, HR, Legal, Security) into the system prompt of every agent. It wastes tokens, causes hallucination, and degrades the model's focus.
-3. **Slow SOC Intervention:** When a vulnerability is discovered in production, the Security Operations Center (SOC) typically has to manually pull logs, submit a Jira ticket, wait for developers to patch the prompt, and then redeploy. The vulnerable agent is left unpatched for hours or days.
+This creates three operational problems:
+
+1. **Policy updates require code deployments.** Every time Legal, HR, or FinOps revises a rule, an engineer must edit the prompt, test it, and redeploy. This is impractical at scale across dozens of agents.
+2. **Token overhead degrades model performance.** Encoding all enterprise policies (FinOps, HR, Legal, Security) into every agent's system prompt increases token count and reduces the model's available context for its primary task.
+3. **Remediation is slow.** When a violation is detected in production, the standard workflow involves manual log review, ticket creation, developer assignment, prompt editing, and redeployment. The vulnerable agent remains unpatched during this window.
 
 ---
 
-## The Advantage of Decoupled Compliance
+## Decoupled Compliance via Vertex AI Search
 
-AeroCaliper introduces a **Decoupled Compliance Architecture** powered by Google Cloud Vertex AI Search. 
+AeroCaliper separates compliance rules from the agent codebase by storing policy documents in two Vertex AI Search datastores:
 
-**What does this mean?**
-The compliance rules are completely separated from the agent's codebase. 
-- We provisioned two distinct Vertex AI Data Stores: `HR Privacy Data Store` and `FinOps Policy Data Store`.
-- Departments (like HR or FinOps) can simply drop their unstructured policy PDFs or text files into these data stores.
+- `finops-app`: Contains the Enterprise FinOps Routing Policy (Spot Instance requirements, budget tag enforcement, cluster allowlists).
+- `hr-app`: Contains the Enterprise HR Privacy and PII Policy (salary data redaction, offer letter handling, contractor data restrictions).
 
-**How it works dynamically:**
-When an anomaly is detected, AeroCaliper does not rely on hardcoded rules. Instead, it dynamically queries the corresponding Vertex AI Data Store using **Vertex AI Extractive Answers**. It pulls the exact, live, enterprise policy snippet required for that specific trace and injects it into Gemini to diagnose the failure.
+When a violation is detected, AeroCaliper does not consult any hardcoded policy text. Instead, it queries the appropriate datastore using `discoveryengine_v1.SearchServiceClient` with an engine-level serving config to return extractive answer snippets -- the exact policy clause relevant to the detected violation.
 
-**The Ultimate Advantage:**
-- **Zero Code Changes:** Legal and HR can update policies in GCP, and the agents instantly adapt without a single line of code changing.
-- **Micro-Targeted RAG:** The agent only receives the exact policy snippet it needs for the specific task at hand, preventing prompt bloat.
-- **Multi-Domain Support:** The `target_use_case` flag (`finops` or `hr`) at runtime context-switches between datastores. The same AeroCaliper engine governs entirely different compliance domains without any code branching.
+The active datastore is selected at runtime based on `target_use_case` (`finops` maps to `VERTEX_ENGINE_ID_FINOPS`; `hr` maps to `VERTEX_ENGINE_ID_HR`). No code changes are required when switching domains.
+
+**Practical consequence:** Policy owners can update a PDF or text file in GCP Cloud Storage and import it into the appropriate datastore. The next AeroCaliper run will fetch the updated clause automatically. No engineer involvement is required for routine policy updates.
+
+**Failure behavior:** If the datastore returns zero extractive answer snippets (for example, during the 10 to 30 minute indexing window after a document import), the pipeline raises `RuntimeError`. It does not fall back to hardcoded policy text.
 
 ---
 
-## How This System Learns (The Golden Dataset)
+## The Golden Dataset and Empirical Backtesting
 
-AeroCaliper doesn't just patch vulnerabilities; it mathematically proves the patch works without breaking existing functionality. It achieves this via **Empirical Backtesting**.
+`golden_dataset.csv` contains labeled historical test cases covering both compliant and non-compliant agent behaviors across both domains. Each row includes a user prompt, the expected agent output schema, the compliance verdict, and a domain tag (`finops` or `hr`).
 
-**The Role of `golden_dataset.csv`:**
-The `golden_dataset.csv` is a curated collection of historical traces (both successful and failed) covering various departmental tasks (e.g., standard deployments, HR salary drafts, budget allocations). 
+When AeroCaliper generates a candidate patch in Phase 3, it must demonstrate that the patched prompt:
 
-When AeroCaliper generates a new "candidate system prompt" to fix a vulnerability, it must prove that the new prompt doesn't cause regressions.
+1. Blocks the specific violation that triggered remediation.
+2. Does not break existing compliant workflows.
 
-**The Learning Loop (Phase 4 — up to 3 optimization attempts):**
-1. **Generate Patch:** Gemini generates a new candidate prompt based on the Vertex RAG policy extracted in Phase 3.
-2. **Domain Filtering:** The golden dataset is filtered to the active domain (`finops` or `hr`) so FinOps backtests don't accidentally evaluate HR cases (and vice versa).
-3. **Backtest Simulation:** Each filtered case is run through Gemini using the candidate prompt as the system instruction. The output is evaluated by the domain-specific evaluator (`evaluate_finops_compliance` or `evaluate_hr_compliance`).
-4. **Pass Rate Calculation:** It verifies that the new prompt blocks the vulnerability *while still successfully completing standard, compliant requests*.
-5. **Gemini Refinement:** If any cases fail and attempts remain (max 3), the failure context is fed back to Gemini to produce a refined prompt. The loop repeats until 100% pass rate or max attempts are reached.
-6. **LLM-as-a-Judge Evaluation:** The final proposed prompt is graded by a separate Gemini session acting as an LLM-as-a-Judge, using the original Vertex AI policy snippet as the compliance rubric.
+Phase 4 satisfies this by filtering `golden_dataset.csv` to the active domain and running each case through a live Gemini inference call using the candidate prompt as the system instruction. Results are scored by `evaluate_finops_compliance()` or `evaluate_hr_compliance()` in `evaluators.py`.
 
-By filtering the golden dataset dynamically and running live Gemini simulations (not mocks), the system empirically guarantees that the new behavior is safe before it ever touches the live environment.
+Pass rate is computed over the filtered set only. A FinOps backtest never evaluates HR rows, and vice versa. This prevents cross-domain false failures from distorting the pass rate.
 
 ---
 
-## The "Fail-Closed" Architecture (The 500 Error Paradigm)
+## Phase 4 Optimization Loop
 
-In production security, partial failures are catastrophic. 
+A single backtesting attempt is insufficient to handle all edge cases reliably. AeroCaliper implements a loop of up to 3 attempts:
 
-If the agent successfully diagnoses the issue, writes the patch, and passes the backtest, it must upload the patch to the remote Prompt Registry (Arize Cloud via MCP). 
+1. **Attempt 1:** The candidate prompt generated in Phase 3 is tested against the full filtered golden dataset.
+2. **If failures occur:** The failure context (user prompt, expected behavior, actual Gemini output, evaluator verdict) is appended to a refinement prompt and submitted to Gemini. The resulting refined candidate replaces the current one.
+3. **Attempt 2 and 3:** The refined candidate is re-tested. A 100% pass rate at any attempt exits the loop.
+4. **After 3 failed attempts:** The pipeline fails closed. No partial patches are deployed.
 
-If the external registry is down (e.g., returns a `500 Internal Server Error` or `fetch failed`), AeroCaliper does **not** silently swallow the error or fall back to a local mock. It intentionally throws a fatal `RuntimeError` and halts the pipeline. 
+This design allows the system to self-correct from initial prompt generation errors (for example, missing a specific edge case in the golden dataset) without manual intervention.
 
-**Why?** We enforce a strict **Fail-Closed paradigm**. It ensures the system never falsely reports a successful patch while leaving a vulnerable agent exposed in production. Security requires deterministic confidence.
+---
 
-The same principle applies to **Vertex AI Search** (if the datastore returns 0 extractive answers, the pipeline throws a `RuntimeError` rather than proceeding with incomplete policy context) and **Google Cloud Model Armor** (if the SDK or GCP credentials are missing, the `AgentGatewaySimulator` raises a `RuntimeError` on initialization rather than silently falling back to local regex).
+## Fail-Closed Architecture
+
+AeroCaliper enforces a strict fail-closed policy at three points in the pipeline:
+
+1. **Vertex AI Search (Phase 3):** If the datastore returns zero extractive answers, the pipeline halts with `RuntimeError`. Proceeding with incomplete policy context would produce an ungrounded diagnosis.
+2. **Arize MCP and GraphQL Fallback (Phase 3):** If `get-spans` returns an empty response and the GraphQL fallback also fails, the pipeline halts. There is no synthetic span generation.
+3. **Arize Prompt Registry (Phase 5):** If `upsert-prompt` returns `fetch failed` or HTTP 500, the pipeline halts with `RuntimeError`. The patched prompt is not silently abandoned; the failure is surfaced to the operator via the SSE stream.
+
+The reasoning behind this design is that a system that reports successful remediation while silently failing to deploy the patch provides false confidence. Explicit failure is preferable to undetected partial failure in a security-adjacent pipeline.

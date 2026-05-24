@@ -1,100 +1,65 @@
-# AeroCaliper v4.0: The Universal AI Governance Firewall
-**Google Agent Platform · Arize Phoenix MCP · Google Cloud Model Armor · Vertex AI Search RAG**
+# AeroCaliper v4.0
 
-AeroCaliper is a zero-trust, closed-loop remediation platform that dynamically patches agentic hallucinations across multiple enterprise departments—all without human SOC intervention.
+**Autonomous AI Governance and Remediation Pipeline**
 
-**Google Cloud Rapid Agent Hackathon Tracks:** Google Agent Platform · AI Observability & Monitoring · **Arize AI Partner Track**
+Google Agent Platform -- Arize Phoenix MCP -- Google Cloud Model Armor -- Vertex AI Search
 
-[Architecture](ARCHITECTURE_AND_LIMITATIONS.md) · [Google & Arize Integration](docs/google_and_arize_integration.md)
+AeroCaliper is a deterministic, five-phase pipeline that detects enterprise policy violations in agentic LLM outputs, diagnoses root causes via Gemini, backtests candidate prompt patches against a domain-filtered golden dataset, and deploys verified patches to the Arize Prompt Registry via MCP. All external dependencies operate in strict fail-closed mode with no mock fallbacks.
 
----
+**Hackathon Tracks:** Google Agent Platform -- AI Observability and Monitoring -- Arize AI Partner Track
 
-## Stop Letting Agents Hallucinate Policy Violations.
-
-As enterprises scale agentic workflows, the cost of AI hallucinations (data leakage, resource waste, policy violations) is skyrocketing. Manual SOC intervention is too slow.
-
-AeroCaliper is the security layer between your enterprise constraints and your AI agents. By decoupling compliance from code using **Vertex AI Search**, AeroCaliper dynamically adapts to *any* department. Whether enforcing **Cloud FinOps budgets** or blocking **HR Privacy/PII leakage**, AeroCaliper detects failures via **Arize Phoenix**, grounds its diagnostics in departmental policy buckets, empirically backtests structural prompt patches against golden datasets, and deploys fixes autonomously.
-
-### How it works (The Decoupled Compliance Advantage):
-Traditionally, policies are hardcoded into an agent's prompt, meaning every compliance change requires an engineer to redeploy code. AeroCaliper fixes this:
-1. **Dynamic RAG Governance (Decoupled Compliance):** Context-switches between domains (e.g., FinOps vs HR Privacy). When triggered, it queries **Vertex AI Search** (e.g., `HR Privacy Data Store`) to pull the exact live policy without touching the codebase. Legal updates the PDF in GCP; the agent instantly adapts.
-2. **Arize Phoenix MCP Server:** Uses the official `@arizeai/phoenix-mcp` to profile the workspace (Phase 2.5) via `get-projects` and `get-datasets`, and fetches failed execution traces directly from the Phoenix Cloud over JSON-RPC. The connection is fully dynamic via the `ARIZE_SPACE_ID` environment variable.
-3. **Empirical Backtesting & LLM-as-a-Judge:** **Gemini** deduces the root cause, generates a candidate patch (Thought Signature), and runs up to 3 optimization loops against a **Golden Dataset** (`golden_dataset.csv`). This CSV contains historical traces (passed and failed) to empirically prove the new patch fixes the vulnerability *without breaking existing, compliant workflows*. Failures in each loop trigger an automatic Gemini refinement cycle.
-4. **Model Armor Egress:** Before hitting production, the patched prompt undergoes Deep Packet Inspection (DPI) via **Google Cloud Model Armor** (`SanitizeUserPrompt` API, `us-central1` regional endpoint) to prevent prompt injections. This is a hard dependency — no mock fallback exists.
-5. **Zero-Trust Fail-Closed (The 500 Error Paradigm):** No mocks. No regex fallbacks. If the Arize Cloud MCP registry returns a `500 Internal Server Error` during the final `upsert-prompt` mutation (a known partner integration issue), the system intentionally crashes and halts the pipeline. We enforce a strict Fail-Closed paradigm to ensure a vulnerable agent is never left unpatched while the system falsely reports success.
+[Architecture and Limitations](ARCHITECTURE_AND_LIMITATIONS.md) -- [Google and Arize Integration](docs/google_and_arize_integration.md)
 
 ---
 
-## 🏆 How We Hit the Arize AI Partner Track Rubric (Devpost)
-AeroCaliper was purpose-built to hit every Devpost requirement for the Arize Partner Track:
-- ✅ **Code-Owned Agent Runtime:** Entirely built on the raw `google-genai` SDK and Python (no visual builder shortcuts).
-- ✅ **Instrumented with OpenInference:** Uses `openinference-instrumentation-google-genai` to seamlessly ship traces.
-- ✅ **Send Traces to Phoenix Cloud:** Fully connected to the hosted Arize Phoenix SAAS via `ARIZE_SPACE_ID`.
-- ✅ **Configure the Phoenix MCP Server for Introspection:** AeroCaliper dynamically discovers datasets (`get-datasets`) and targets failed executions (`get-spans`) using the `@arizeai/phoenix-mcp` server.
-- ✅ **Run Evaluations with LLM-as-a-Judge:** The pipeline uses Phoenix Evals to grade the patched agent against the retrieved Vertex AI Extractive Answers policy.
-- 🎯 **BONUS POINTS: "Agents that use their own observability data to improve over time"** 
-  > This is the entire core thesis of AeroCaliper. It detects a failed trace, runs a mathematical backtest against historical data (`golden_dataset.csv`), and uses the MCP `upsert-prompt` tool to heal the prompt. You literally built the ultimate **self-improving observability loop**.
+## Problem Statement
+
+Enterprise AI agents that encode compliance rules directly in their system prompts require a code deployment to update any policy. When a policy violation is detected in production, the remediation cycle typically involves manual log review, ticket creation, developer intervention, prompt editing, and redeployment. AeroCaliper replaces this workflow with an autonomous pipeline.
 
 ---
 
-## Deep Arize Phoenix MCP Integration (Arize AI Partner Track)
+## Architecture Overview
 
-AeroCaliper natively implements the Model Context Protocol (MCP) using the official `modelcontextprotocol.io` Python SDK, acting as an enterprise-grade MCP client. We connect dynamically to the hosted `@arizeai/phoenix-mcp` server using `StdioServerParameters` over JSON-RPC 2.0, utilizing `ARIZE_SPACE_ID` for precise, environment-agnostic workspace targeting.
+AeroCaliper implements a five-phase pipeline:
 
-**How Phoenix is Configured for the Demo:**
-1. **`/spans` (Tracing):** All Target Agent executions are natively traced via OpenTelemetry. This is where AeroCaliper retrieves failed traces using the `get-spans` MCP tool. If the MCP tool returns an empty or error response, the system falls back to a native GraphQL query against the Arize Phoenix API before failing closed.
-2. **`/prompts` (Prompt Registry):** The target agent retrieves its initial system prompt (`aerocaliper-finops-routing-agent`) from this registry. Once AeroCaliper completes remediation, the `upsert-prompt` MCP tool overwrites it with the secured version.
-3. **`/datasets` (Golden Datasets):** To perform empirical backtesting, the `aerocaliper-golden-dataset` is hosted here. The `get-datasets` MCP tool discovers it so the pipeline can mathematically prove the new patch against historical edge cases.
-4. **`/evaluators` (LLM-as-a-Judge):** Configured rubrics grade whether the agent's payload remains compliant post-remediation.
-
-Specifically, the platform utilizes four native MCP tools to close the autonomous remediation loop:
-1. **`get-projects`**: Profiles the live Arize workspace to verify the target operational environment and ensure trace data is flowing.
-2. **`get-datasets`**: Discovers "golden datasets" deployed on Arize to configure the empirical backtesting engine.
-3. **`get-spans`**: Autonomously retrieves the exact OpenTelemetry execution trace of the hallucinated agent operation. This structured trace serves as the deterministic context for Gemini's root-cause analysis.
-4. **`upsert-prompt`**: Upon passing the LLM-as-a-Judge and Google Cloud Model Armor DPI, AeroCaliper executes this tool to push the patched, compliant system prompt directly into the Arize Prompt Registry, healing the target agent instantly.
+1. **Phase 1 -- Detection:** A two-layer anomaly scanner (deterministic regex and Gemini intent analysis) classifies the incoming request and assigns a risk score. The active domain (`finops` or `hr`) is set at initialization and propagates through all subsequent phases.
+2. **Phase 2 -- MCP Handshake:** Spawns `@arizeai/phoenix-mcp` via `npx` over JSON-RPC 2.0 using the official `modelcontextprotocol.io` Python SDK. Phase 2.5 executes `get-projects` and `get-datasets` to profile the live Arize workspace.
+3. **Phase 3 -- Diagnostic:** Fetches the most recent failed execution trace from Arize Phoenix via `get-spans`. If MCP returns an empty response, a native GraphQL fallback queries the Phoenix API directly. The trace is combined with a Vertex AI Search extractive answer for the active policy domain, then submitted to Gemini for root-cause analysis. The resulting candidate prompt patch is wrapped in a hash-based Thought Signature token (`sig_v4_<hash>`).
+4. **Phase 4 -- LLM-as-a-Judge:** Runs the candidate patch through a backtesting loop (up to 3 attempts). Each golden dataset case is simulated via a live Gemini call and scored by the domain-specific evaluator. Failed attempts feed failure context back to Gemini for refinement. On 100% pass rate, the pipeline blocks on an `asyncio.Event()` until the admin approves or rejects the patch via the SSE frontend. A separate Gemini session then evaluates the approved patch against a universal compliance rubric.
+5. **Phase 5 -- Secure Patch:** The approved prompt is inspected by Google Cloud Model Armor (`SanitizeUserPrompt`, `us-central1` regional endpoint) and deployed to the Arize Prompt Registry via `upsert-prompt` MCP. A `500` or `fetch failed` response raises a `RuntimeError` (fail-closed).
 
 ---
 
-## Raw Empirical Backtesting
-AeroCaliper isn't just generating prompts—it's mathematically proving they work.
-
-| Use Case | Script | Output |
-|---|---|---|
-| **FinOps CLI E2E** | `scripts/scratch.py` | Connects to Arize Cloud, executes Phase 1-5 autonomous pipeline, outputs 100% PASS for 8/8 FinOps constraints. |
-| **Universal UI** | `main.py` | FastAPI + SSE Server. Provides dynamic context switching between FinOps and HR Privacy with real-time UI logging. |
-
----
-
-## Architecture Pipeline
+## Pipeline Diagram
 
 ```mermaid
 flowchart TD
     subgraph Execution and Validation
         A[AeroCaliper Initiated] --> B[A2A Interceptor]
         B --> C[Layer 1 and 2 Anomaly Detection]
-        C -->|Risk Score > Threshold| D[Arize Phoenix MCP Server Handshake]
+        C -->|Risk Score Above Threshold| D[Arize Phoenix MCP Handshake]
         D -- "get-projects, get-datasets" --> D2[Phase 2.5 MCP Discovery]
         D2 -- "get-spans" --> E[Gemini Root Cause Analysis]
         E -- "Thought Signature Generated" --> F{A2UI Admin Approval}
         F -- "Approve" --> G[Gemini LLM-as-a-Judge]
     end
 
-    subgraph Optimization Loop
-        G -- "Failures Detected" --> OL[Gemini Refinement Loop max 3 attempts]
+    subgraph Phase 4 Optimization Loop
+        G -- "Failures Detected" --> OL[Gemini Refinement up to 3 attempts]
         OL --> G
     end
 
-    subgraph Security and Self-Healing
-        G -- "Passes Universal Rubric" --> H[Google Cloud Model Armor DPI]
-        H -- "Payload Sanitized" --> I[Arize Phoenix MCP Server]
+    subgraph Egress and Deployment
+        G -- "Passes Compliance Rubric" --> H[Google Cloud Model Armor DPI]
+        H -- "Payload Cleared" --> I[Arize Phoenix MCP]
         I -- "upsert-prompt" --> J[Arize Prompt Registry]
-        J -.-|Dynamically Fetched| K[Target Agent Healed]
+        J -.-|Fetched on Boot| K[Target Agent Reloads Patched Prompt]
     end
 
     classDef gcp fill:#4285F4,stroke:#fff,stroke-width:2px,color:#fff;
     classDef arize fill:#E048A7,stroke:#fff,stroke-width:2px,color:#fff;
     classDef llm fill:#0F9D58,stroke:#fff,stroke-width:2px,color:#fff;
-    
+
     H:::gcp
     D:::arize
     D2:::arize
@@ -107,76 +72,130 @@ flowchart TD
 
 ---
 
-## Demo Scripts
+## Decoupled Compliance Architecture
 
-```bash
-# 1. Run the Raw CLI E2E Gauntlet (FinOps Pipeline)
-python scripts/scratch.py
+Compliance rules are stored as unstructured policy documents in two Vertex AI Search datastores (`finops-app` and `hr-app`). When a violation is detected, AeroCaliper queries the appropriate datastore using `discoveryengine_v1.SearchServiceClient` with engine-level serving configs to return extractive answer snippets. The active datastore is selected at runtime via `target_use_case`. No policy text is hardcoded in the application.
 
-# 2. Launch the Universal Platform UI (FastAPI Server)
-uvicorn main:app --host 127.0.0.1 --port 8080
-
-# 3. Simulate GCP Datastore Query testing
-python scripts/debug_vertex.py
-
-# 4. Run the full test suite
-pytest tests/
-```
+This design allows policy owners (legal, HR, FinOps) to update documents in GCP without any code deployment. If the datastore returns zero extractive answers, the pipeline raises a `RuntimeError` rather than proceeding with incomplete context.
 
 ---
 
-## Files Using Google Cloud & Arize
-**Hackathon requirement:** The README must explicitly link to all files that use partner technologies.
+## Arize Phoenix MCP Integration
+
+The system uses four MCP tools from `@arizeai/phoenix-mcp`:
+
+| Tool | Phase | Purpose |
+|---|---|---|
+| `get-projects` | 2.5 | Verifies the `aerocaliper` project exists in the workspace |
+| `get-datasets` | 2.5 | Locates the golden dataset for empirical backtesting |
+| `get-spans` | 3 | Retrieves the most recent failed execution trace |
+| `upsert-prompt` | 5 | Deploys the verified patched prompt to the Arize Prompt Registry |
+
+The MCP server is spawned programmatically via `mcp.ClientSession` and `StdioServerParameters`. On Windows, the command is `cmd.exe /c npx`; on Unix, `npx`. The `--baseUrl` argument is constructed from `ARIZE_SPACE_ID` at runtime.
+
+---
+
+## Empirical Backtesting
+
+The `golden_dataset.csv` contains labeled historical test cases for both domains. During Phase 4, cases are filtered to the active domain before simulation. Pass rate is computed over the filtered denominator only, preventing cross-domain contamination.
+
+Each simulation call is a live Gemini inference using the candidate prompt as the system instruction. Results are scored by `evaluate_finops_compliance()` or `evaluate_hr_compliance()` in `evaluators.py`. A 100% pass rate on the first attempt short-circuits the loop. Failed attempts trigger a Gemini refinement call with the failure context appended.
+
+---
+
+## Fail-Closed Architecture
+
+Three hard failure points, each raising `RuntimeError` with no fallback:
+
+1. Vertex AI Search returns zero extractive answer snippets.
+2. `get-spans` returns an empty response and the GraphQL fallback also fails.
+3. `upsert-prompt` returns `fetch failed` or HTTP 500.
+
+If any of these conditions occur, the pipeline halts and emits an error event to the SSE stream. The target agent is not patched, and no false success is reported.
+
+---
+
+## Files Using Partner Technologies
 
 | File | Role |
 |---|---|
-| `aerocaliper.py` | **Core Orchestrator:** Implements `google-genai` for Gemini inference, spawns `@arizeai/phoenix-mcp` via the official MCP Python SDK, and executes live Vertex AI Search `discoveryengine_v1` RAG queries. Hosts the 3-attempt Gemini refinement optimization loop in Phase 4. |
-| `agent_gateway.py` | **Model Armor DPI:** Configures the `google-cloud-modelarmor` SDK with the regional endpoint `modelarmor.us-central1.rep.googleapis.com`. Operates in strict mode — raises `RuntimeError` if the SDK or GCP credentials are unavailable. No mock fallback. |
-| `a2a_interceptor.py` | **Zero-Trust Security:** Implements `before_request` scope-validation hooks (`remediate:read`, `remediate:write`, `mcp:connect`) to block unauthorized infrastructure calls before execution. |
-| `target_agent.py` | **Target Agent:** The agent being monitored. Fetches its system prompt dynamically from the Arize Prompt Registry via `get_prompt()` at boot. Instrumented with OpenInference to export traces. |
-| `main.py` | **FastAPI SSE Server:** Hosts the A2UI streaming endpoint (`/remediate/stream`) with blocking admin approval gates (`/remediate/approve/{session_id}`, `/remediate/reject/{session_id}`). |
-| `scripts/scratch.py` | **CLI Backtester:** Executes the full end-to-end pipeline in the terminal without UI dependencies to prove fail-closed architecture. |
-| `evaluators.py` | **LLM-as-a-Judge Rubrics:** Contains the FinOps and HR Privacy evaluation logic used during the dynamic backtesting phase. |
-| `tests/test_backend.py` | **TDD Suite:** Validates GCP Logging integration and strict Regional Endpoint compliance. |
-| `tests/test_armor_live.py` | **Live Model Armor Test:** Validates that the regional Model Armor endpoint is reachable and sanitizing payloads correctly. |
-| `tests/test_vertex_live.py` | **Live Vertex AI Search Test:** Validates that FinOps and HR policy datastores are indexed and returning extractive answers. |
-| `tests/test_arize_registry_live.py` | **Live Arize Registry Test:** Validates that `get-spans` and `upsert-prompt` MCP calls succeed against the live Arize Cloud. |
+| `aerocaliper.py` | Core pipeline orchestrator. Implements `google-genai` for Gemini inference, spawns `@arizeai/phoenix-mcp` via the MCP Python SDK, and executes Vertex AI Search `discoveryengine_v1` RAG queries. Hosts the Phase 4 optimization loop. |
+| `agent_gateway.py` | Model Armor egress layer. Configures `google-cloud-modelarmor` with the `us-central1` regional endpoint. Raises `RuntimeError` on initialization if SDK or credentials are absent. |
+| `a2a_interceptor.py` | Scope-validation interceptor. Validates `remediate:read`, `remediate:write`, and `mcp:connect` scopes on all Gemini calls before execution. |
+| `target_agent.py` | Target agent under monitoring. Fetches its system prompt from the Arize Prompt Registry via `client.prompts.get(prompt_identifier=...)` on boot. Instrumented with OpenInference for OTLP trace export. |
+| `main.py` | FastAPI SSE server. Hosts `/remediate/stream`, `/remediate/approve/{session_id}`, and `/remediate/reject/{session_id}`. |
+| `anomaly_detector.py` | Two-layer anomaly scanner. Layer 1 is deterministic regex; Layer 2 is a Gemini intent analysis call returning a risk score (0.0 to 1.0) and threat classification. |
+| `evaluators.py` | Domain evaluators for empirical backtesting. Contains `evaluate_finops_compliance()` and `evaluate_hr_compliance()`. |
+| `scripts/scratch.py` | CLI runner for the full end-to-end pipeline without the UI dependency. |
+| `tests/test_backend.py` | Unit tests for GCP Logging integration and regional endpoint compliance. |
+| `tests/test_armor_live.py` | Live integration test for the Model Armor regional endpoint. |
+| `tests/test_vertex_live.py` | Live integration test confirming both Vertex AI Search datastores are indexed and returning extractive answers. |
+| `tests/test_arize_registry_live.py` | Live integration test for `get-spans` and `upsert-prompt` MCP calls against the Arize Cloud. |
 
 ---
 
 ## Quickstart
 
-1. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Configure Environment**
-   ```bash
-   cp .env.example .env
-   # Fill: GOOGLE_AGENT_PLATFORM_API_KEY, PHOENIX_API_KEY, GCP_PROJECT_ID,
-   #       ARIZE_SPACE_ID, MODEL_ARMOR_TEMPLATE, GCP_PROJECT_NUMBER
-   ```
-3. **Execute E2E Demo**
-   ```bash
-   python scripts/scratch.py
-   ```
-4. **Launch the UI**
-   ```bash
-   uvicorn main:app --host 127.0.0.1 --port 8080
-   ```
+**Step 0: Environment Configuration**
+
+```bash
+cp .env.example .env
+# Edit .env and populate all required variables before proceeding.
+# Required: GOOGLE_AGENT_PLATFORM_API_KEY, PHOENIX_API_KEY, GCP_PROJECT_ID,
+#           ARIZE_SPACE_ID, MODEL_ARMOR_TEMPLATE, GCP_PROJECT_NUMBER
+```
+
+**Step 1: Install Dependencies**
+
+```bash
+pip install -r requirements.txt
+```
+
+**Step 2: Execute CLI Pipeline**
+
+```bash
+python scripts/scratch.py
+```
+
+**Step 3: Launch UI**
+
+```bash
+uvicorn main:app --host 127.0.0.1 --port 8080
+```
+
+**Step 4: Push Target Agent Traces (required for live span retrieval)**
+
+```bash
+python target_agent.py --use-case finops
+python target_agent.py --use-case hr
+```
+
+**Step 5: Run the Test Suite**
+
+```bash
+pytest tests/
+```
+
+---
+
+## Known Limitations
+
+See [Architecture and Limitations](ARCHITECTURE_AND_LIMITATIONS.md) for the full list. Key items:
+
+- The `get-spans` MCP tool returns no parseable `trace_id` from the `aerocaliper` project because the span format does not include a top-level ID field. The system falls through to the GraphQL fallback, which also returns `trace_id=unknown` when no recent spans are indexed. The trace violation context is synthesized from the golden dataset rather than a live span payload in this state.
+- The target agent's Phoenix client uses `SimpleSpanProcessor`, which is synchronous and not recommended for production workloads. A `BatchSpanProcessor` is required for production.
+- The Phase 4 optimization loop is capped at 3 attempts. If the patch does not reach 100% pass rate within 3 attempts, the pipeline fails closed.
+- Model Armor template propagation can take several minutes after creation. Tests run immediately after template creation may fail with `TEMPLATE_NOT_FOUND`.
 
 ---
 
 ## Deep Dives
+
 | Document | Content |
 |---|---|
-| [Hackathon Checklist](HACKATHON_SUBMISSION_CHECKLIST.md) | Final checks, partner APIs, and demo requirements. |
-| [Decoupled Compliance & Learning](docs/DECOUPLED_COMPLIANCE_AND_LEARNING.md) | Deep dive into the Vertex AI Search paradigm, Golden Dataset, and Fail-Closed architecture. |
-| [Architecture](ARCHITECTURE_AND_LIMITATIONS.md) | Component breakdown, trace capabilities, and strict Fail-Closed limits. |
-| [Google & Arize Integration](docs/google_and_arize_integration.md) | Deep dive into Model Armor, Vertex Search, and Arize MCP handshakes. |
-| [Agent Architecture](docs/agent_architecture.md) | A2A interceptors, multi-layer anomaly detection, and Phase 4 optimization loop. |
-| [Lessons Learned](docs/lessons_learned.md) | Hackathon insights on SDK complexities, Datastore indexing, and Model Armor strict mode. |
-| [Vertex RAG & Arize Eval Notebook](notebooks/Vertex_RAG_and_Arize_Eval_Deep_Dive.ipynb) | Explains exact Extractive Answers logic for LLM-as-a-judge. |
-
----
-**Zero Mocks. Zero Spoofing. 100% Live Infrastructure.**
+| [Architecture and Limitations](ARCHITECTURE_AND_LIMITATIONS.md) | Component breakdown, fail-closed points, and known limitations. |
+| [Decoupled Compliance and Learning](docs/DECOUPLED_COMPLIANCE_AND_LEARNING.md) | Vertex AI Search RAG design, golden dataset structure, and optimization loop mechanics. |
+| [Google and Arize Integration](docs/google_and_arize_integration.md) | SDK-level details for Model Armor, Vertex Search, Arize MCP, and OTLP trace export. |
+| [Agent Architecture](docs/agent_architecture.md) | A2A interceptors, anomaly detection layers, and Phase 4 backtesting mechanics. |
+| [Lessons Learned](docs/lessons_learned.md) | Engineering notes on SDK integration issues, indexing delays, and fail-closed design decisions. |
+| [Vertex RAG and Arize Eval Notebook](notebooks/Vertex_RAG_and_Arize_Eval_Deep_Dive.ipynb) | Extractive Answers configuration and LLM-as-a-Judge rubric implementation. |
