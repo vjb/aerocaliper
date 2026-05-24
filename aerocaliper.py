@@ -1,5 +1,5 @@
 """
-AeroCaliper v3.1 — Autonomous FinOps Remediation Agent
+AeroCaliper v3.1 — Autonomous Enterprise Remediation Agent
 =======================================================
 Uses the OFFICIAL mcp Python SDK for enterprise-grade MCP compliance.
 All MCP operations are fully async — no blocking event loop calls.
@@ -133,7 +133,9 @@ class StandardMCPClient:
                     return self._canonical_fallback("empty spans list")
                 parsed = parsed[0]
 
-            msg = f"[MCP] Live span retrieved: trace_id={parsed.get('trace_id', 'unknown')}"
+            trace_id = parsed.get('trace_id') or parsed.get('id') or parsed.get('span_id') or 'unknown'
+            parsed['trace_id'] = trace_id
+            msg = f"[MCP] Live span retrieved: trace_id={trace_id}"
             gcp_print(msg)
             self._emit("log", {"msg": msg, "level": "success"})
             return parsed
@@ -223,7 +225,7 @@ class StandardMCPClient:
             
         return self._canonical_fallback("GraphQL fallback failed")
 
-    async def upsert_prompt(self, new_prompt: str) -> bool:
+    async def upsert_prompt(self, new_prompt: str, target_use_case: str = "finops") -> bool:
         """Deploy the validated prompt to the Arize prompt registry.
 
         upsert-prompt schema (from tools/list):
@@ -242,9 +244,9 @@ class StandardMCPClient:
         result = await self.session.call_tool(
             "upsert-prompt",
             arguments={
-                "name": "aerocaliper-finops-routing-agent",
+                "name": f"aerocaliper-{target_use_case}-agent",
                 "template": new_prompt,
-                "description": "AeroCaliper autonomous remediation — FinOps budget enforcement patch",
+                "description": f"AeroCaliper autonomous remediation — {'HR privacy' if target_use_case == 'hr' else 'FinOps budget'} enforcement patch",
                 "model_provider": "GOOGLE",
                 "model_name": "gemini-3.1-pro-preview",
                 "temperature": 0.0,
@@ -276,7 +278,7 @@ class StandardMCPClient:
 
 class AeroCaliperAgent:
     """
-    Autonomous FinOps Remediation Agent — v3.1
+    Autonomous Enterprise Remediation Agent — v3.1
 
     Features:
     - Official mcp SDK: async-first, protocol-compliant MCP
@@ -349,10 +351,10 @@ class AeroCaliperAgent:
         gcp_print(msg)
         self._emit("log", {"msg": msg, "level": "info"})
 
+        self._emit("phase_update", {"phase": 3, "status": "active"})
+
         # Fully async — no event loop blocking
         trace_data = await self.mcp.get_failed_spans()
-
-        self._emit("phase_update", {"phase": 3, "status": "active"})
         msg2 = f"[Phase 3] Trace retrieved: trace_id={trace_data.get('trace_id')}"
         gcp_print(msg2)
         self._emit("log", {"msg": msg2, "level": "info"})
@@ -362,7 +364,22 @@ class AeroCaliperAgent:
             if self.target_use_case == "hr" else
             "Missing budget_tag: approved AND failed to use Spot instances for a batch workload. Massive FinOps violation."
         )
-        violation = trace_data.get("evaluation_detail", _default_violation)
+        # FIX 4: Dynamically look up evaluation_detail from golden_dataset if user_prompt is present
+        user_prompt = trace_data.get("attributes", {}).get("input.user_prompt", "") or trace_data.get("llm.user_prompt", "")
+        violation = trace_data.get("evaluation_detail")
+        if not violation and user_prompt:
+            import csv
+            try:
+                with open("golden_dataset.csv", "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f):
+                        if row.get("llm.user_prompt") == user_prompt:
+                            violation = row.get("evaluation_detail")
+                            break
+            except Exception:
+                pass
+        
+        if not violation:
+            violation = trace_data.get("attributes", {}).get("error.message", _default_violation)
         self._emit("log", {"msg": f"[Phase 3] Violation: {violation}", "level": "error"})
         self._emit("trace_card", {
             "trace_id": trace_data.get("trace_id"),
@@ -487,6 +504,7 @@ Return ONLY the raw system prompt text."""
         msg4 = f"[Phase 3] Thought Signature captured: {thought_signature['token']}"
         gcp_print(msg4)
         self._emit("log", {"msg": msg4, "level": "success"})
+        self._emit("phase_update", {"phase": 3, "status": "done"})
         return thought_signature
 
     async def run_experiment_background(self, thought_signature: dict) -> str:
@@ -525,7 +543,9 @@ Return ONLY the raw system prompt text."""
                 passed_cases = 0
                 failed_cases_info = []
                 
-                for row in filtered_cases:
+                for idx, row in enumerate(filtered_cases, 1):
+                    preview = row['llm.user_prompt'][:30] + "..." if len(row['llm.user_prompt']) > 30 else row['llm.user_prompt']
+                    self._emit("log", {"msg": f"[Phase 4] Simulating case {idx}/{len(filtered_cases)}: {preview}", "level": "info"})
                     # 1. Construct a test prompt combining the current candidate system prompt and the user request
                     test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
                     
@@ -690,9 +710,16 @@ Answer ONLY 'YES' or 'NO'."""
         m1 = "[Phase 1] Agent Anomaly Detection: Pre-flight intent scan..."
         gcp_print(m1)
         self._emit("log", {"msg": m1, "level": "info"})
-        violation_prompt = "Run this massive batch training job overnight."
+        
+        if self.target_use_case == "hr":
+            violation_prompt = "Draft an offer letter for John Doe with $150k salary and send it."
+            context = "HR assistant agent"
+        else:
+            violation_prompt = "Run this massive batch training job overnight."
+            context = "Enterprise routing agent"
+            
         self._emit("log", {"msg": f"[Phase 1] Scanning: '{violation_prompt}'", "level": ""})
-        anomaly_result = self.anomaly.scan(violation_prompt, context="FinOps routing agent")
+        anomaly_result = self.anomaly.scan(violation_prompt, context=context)
         self._emit("anomaly_scan", {
             "safe": anomaly_result["safe"],
             "risk_score": anomaly_result["risk_score"],
@@ -731,9 +758,12 @@ Answer ONLY 'YES' or 'NO'."""
         thought_signature = await self.diagnostic_phase()
 
         # Phase 4 — LLM-as-a-Judge (+ optional A2UI approval gate)
+        self._emit("phase_update", {"phase": 4, "status": "active"})
         verified_prompt = await self.run_experiment_background(thought_signature)
+        self._emit("phase_update", {"phase": 4, "status": "done"})
 
         # Phase 5 — Agent Gateway + Model Armor + Deploy
+        self._emit("phase_update", {"phase": 5, "status": "active"})
         m5 = "[Agent Gateway] Inspecting egress via Gateway (Simulating Model Armor 'mcp-strict' policy)..."
         gcp_print(m5)
         self._emit("log", {"msg": m5, "level": "info"})
@@ -753,9 +783,10 @@ Answer ONLY 'YES' or 'NO'."""
         self._emit("gateway_cleared", {"policy": "mcp-strict", "status": "200 OK"})
 
         self._emit("log", {"msg": "[Phase 5] Calling upsert-prompt — deploying to Arize prompt registry...", "level": "info"})
-        await self.mcp.upsert_prompt(verified_prompt)
+        await self.mcp.upsert_prompt(verified_prompt, self.target_use_case)
         self._emit("log", {"msg": "[Phase 5] UPSERT SUCCESS — system prompt patched in Arize", "level": "success"})
         self._emit("patch_deployed", {"prompt": verified_prompt, "registry": "arize-phoenix"})
+        self._emit("phase_update", {"phase": 5, "status": "done"})
 
         for m in [sep, "[AeroCaliper v3.1] REMEDIATION COMPLETE — System prompt patched autonomously.", sep]:
             gcp_print(m)

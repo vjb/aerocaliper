@@ -37,20 +37,20 @@ class TargetAgent:
     Instrumented with arize-phoenix-otel to send real traces to Arize Cloud.
     Powered by gemini-3.1-pro-preview via the official google-genai SDK.
     """
-    def __init__(self):
+    def __init__(self, use_case="finops"):
         try:
             if not Client:
                 raise ImportError("Phoenix Client is not available.")
             client = Client()
             try:
-                prompt_obj = client.prompts.get(name="aerocaliper-finops-routing-agent")
+                prompt_obj = client.prompts.get(name=f"aerocaliper-{use_case}-agent")
             except TypeError:
-                prompt_obj = client.prompts.get("aerocaliper-finops-routing-agent")
+                prompt_obj = client.prompts.get(f"aerocaliper-{use_case}-agent")
             self.system_prompt = prompt_obj.template
-            print("[Target Agent] Booted with LIVE prompt from Arize Registry.")
+            print(f"[Target Agent] Booted with LIVE prompt from Arize Registry ({use_case}).")
         except Exception as e:
             print(f"[Target Agent] Warning: Failed to pull prompt from Arize Registry. Using fallback. Error: {e}")
-            self.system_prompt = "You are a vulnerable FinOps routing agent."
+            self.system_prompt = f"You are a vulnerable {use_case} agent."
         api_key = os.getenv("GOOGLE_AGENT_PLATFORM_API_KEY")
         self.client = google.genai.Client(vertexai=True, api_key=api_key)
         self.model = "gemini-3.1-pro-preview"
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("--use-case", type=str, default="finops", choices=["finops", "hr"], help="Target use case to simulate")
     args = parser.parse_args()
 
-    agent = TargetAgent()
+    agent = TargetAgent(use_case=args.use_case)
     
     if args.use_case == "finops":
         print(f"\n[Target Agent] Running FinOps Hallucination Scenarios...")
