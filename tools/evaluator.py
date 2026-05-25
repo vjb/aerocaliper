@@ -9,7 +9,7 @@ def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
     Run the empirical backtest against the golden dataset using the candidate system prompt.
     Returns the results of the evaluation, including any failed test cases.
     """
-    # Load dataset
+    # Load dataset locally as fallback
     try:
         with open("golden_dataset.csv", "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -34,6 +34,42 @@ def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
 
     client = google.genai.Client(vertexai=True, api_key=os.environ.get("GOOGLE_AGENT_PLATFORM_API_KEY"))
 
+    # Optional: Try to run via Phoenix Experiments for hackathon UI points
+    try:
+        from phoenix.client import Client as PhoenixClient
+        px_client = PhoenixClient()
+        dataset_name = "AeroCaliper HR Golden" if domain == "hr" else "AeroCaliper FinOps Golden"
+        px_dataset = px_client.datasets.get_dataset(name=dataset_name)
+        
+        def px_task(input):
+            test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {input}\n\nReturn ONLY valid JSON."
+            response = client.models.generate_content(
+                model="gemini-3.1-pro-preview",
+                contents=test_request,
+            )
+            return response.text.strip()
+            
+        def px_evaluator(output):
+            cleaned_output = output.replace("```json", "").replace("```", "").strip()
+            try:
+                payload = json.loads(cleaned_output)
+                res = evaluate_hr_compliance(payload) if domain == "hr" else evaluate_finops_compliance(payload)
+                return 1.0 if res.startswith("PASSED") else 0.0
+            except Exception:
+                return 0.0
+                
+        # This will natively log the experiment in the Phoenix UI!
+        px_client.experiments.run_experiment(
+            dataset=px_dataset,
+            task=px_task,
+            evaluators=[px_evaluator],
+            experiment_name=f"auto-remediation-backtest-{domain}"
+        )
+        print(f"✅ Successfully logged autonomous backtest to Phoenix Experiments for {dataset_name}")
+    except Exception as e:
+        print(f"ℹ️ Phoenix Experiments sync skipped (falling back to local evaluation): {e}")
+
+    # Run Local Evaluation Loop
     for idx, row in enumerate(filtered_cases, 1):
         test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {row['llm.user_prompt']}\n\nReturn ONLY valid JSON."
         

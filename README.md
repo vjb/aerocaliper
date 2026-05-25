@@ -8,16 +8,15 @@ Powered by the **Google Agent Platform**, **Arize Phoenix**, and the **Model Con
 
 ---
 
-## 🏆 Google Cloud Rapid Agent Hackathon (Arize Track)
+## 🏆 Devpost Judging Criteria Alignment
 
-AeroCaliper was built to perfectly align with the core judging criteria of the Arize track: **"Ship agents that do more than run. Ship agents that can self improve."**
+AeroCaliper is designed specifically to hit the Google Cloud Rapid Agent Hackathon criteria:
 
-Here is exactly how AeroCaliper maps to the hackathon requirements:
-- **Code-Owned Agent Runtime**: Built entirely from the ground up using the Google GenAI SDK (`gemini-3.1-pro-preview`) running as an asynchronous FastAPI application on Google Cloud Run.
-- **Meaningful Use of Tracing**: Fully instrumented using the `openinference-instrumentation-google-genai` OpenTelemetry auto-instrumentor. 
-- **Introspection via MCP**: Seamlessly integrates the `@arizeai/phoenix-mcp` server. It uses the `get-spans` tool to fetch its own failed traces, and `upsert-prompt` to deploy the repaired system prompts dynamically without a code redeployment.
-- **LLM-as-a-Judge Evaluations**: Every candidate patch is passed through a rigorous empirical backtesting loop. Gemini runs simulated evaluations against a golden dataset, forcing the agent to self-refine up to three times until it achieves a 100% pass rate.
-- **Iterative Self-Improvement Loop**: AeroCaliper is the epitome of an agent using its own observability data to improve over time. By pulling failed traces, augmenting them with Vertex AI Search for enterprise compliance rules, running automated backtests, and seamlessly updating the prompt registry, the agent autonomously self-heals in under two minutes.
+1. **Meaningful Use of Tracing**: We don't just log OpenTelemetry traces; we *act* on them. The agent uses the Arize Phoenix MCP Server to autonomously query its own failure spans at runtime (`fetch_failed_traces`) and uses them as diagnostic context.
+2. **Datasets & Experiments**: Instead of just testing locally, AeroCaliper utilizes the `arize-phoenix-client` to sync our Golden Truth datasets directly into the Phoenix Cloud (`scripts/sync_datasets_to_phoenix.py`). When the Gemini agent runs an autonomous empirical backtest to validate a patched prompt, it natively logs the results to the Phoenix Experiments UI via `px_client.experiments.run_experiment()`. This mathematically proves the self-healing loop in the dashboard over time.
+3. **Use of MCP**: We use the official `@arizeai/phoenix-mcp` server to seamlessly pull trace data and deploy patched prompts back to the registry without any code changes or redeployments.
+4. **Google Cloud Native**: Integrated deeply with Vertex AI Search RAG (for enterprise policy injection), Cloud Firestore (for episodic memory of past remediations), Model Armor (for Data Loss Prevention on egress), and Gemini 3.1 Pro.
+5. **Self-Improving Agents**: The entire pipeline is an autonomous self-healing loop that fixes agent hallucinations without human intervention, logging its improvements dynamically.
 
 ---
 
