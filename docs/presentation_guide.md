@@ -86,5 +86,31 @@ If the judges ask *how* you integrated Phoenix, you need to emphasize that you u
 
 ---
 
+## 5. Deep Dive: Google Cloud Component Mapping
+
+AeroCaliper relies heavily on the Google Cloud ecosystem to provide the intelligence, memory, and security needed for autonomous remediation. Here is how the native GCP features are leveraged:
+
+### 1. Gemini 3.1 Pro (via `google-genai` SDK)
+* **What it is:** Google's latest multimodal reasoning engine, accessed through the new unified Python SDK.
+* **The Problem it Solves:** Traditional LLMs lack the reasoning capacity to read a raw OpenTelemetry JSON trace, figure out *why* a sub-agent hallucinated, and write a patched system prompt that fixes the bug.
+* **How AeroCaliper uses it:** Gemini 3.1 Pro acts as both the **Diagnostics Agent** (analyzing traces and rewriting prompts) and the **Backtester Agent** (simulating user requests against the patched prompt to test for regressions).
+
+### 2. Vertex AI Search (RAG)
+* **What it is:** Google's enterprise retrieval engine.
+* **The Problem it Solves:** If an agent hallucinates a policy (e.g., giving a contractor access to internal salaries), you can't just tell the LLM to "fix it." The LLM needs to know the *actual* corporate policy to ground its fix.
+* **How AeroCaliper uses it:** When a failure trace is detected, the Diagnostics Agent queries a Vertex AI Search data store containing HR and FinOps manuals. The retrieved ground-truth policy is injected directly into the prompt-healing context window.
+
+### 3. Cloud Firestore
+* **What it is:** A highly scalable NoSQL document database.
+* **The Problem it Solves:** AI agents have no memory. If an LLM writes a prompt patch that fails the backtest, it might try to deploy the exact same broken patch again tomorrow.
+* **How AeroCaliper uses it:** Firestore acts as the **Episodic Memory** for the pipeline. Every time a prompt is patched, the fix (and its test results) are written to Firestore. Before Gemini attempts a new fix, it queries Firestore to see past remediation attempts, ensuring it doesn't repeat past mistakes.
+
+### 4. Model Armor
+* **What it is:** Google's security service for filtering LLM inputs and outputs, acting as a Deep Packet Inspection (DPI) layer.
+* **The Problem it Solves:** What if the Diagnostics Agent accidentally leaks PII or toxic data *into* the patched system prompt it is about to deploy to the registry?
+* **How AeroCaliper uses it:** Right before `mcp_client.py` pushes the healed prompt to the Arize Prompt Registry, the payload passes through Model Armor. If Model Armor detects PII, it blocks the egress, preventing the security vulnerability from ever reaching production.
+
+---
+
 ## 💡 The Pitch Summary (Elevator Pitch)
 *"Observability platforms today are built for humans to look at dashboards. But humans are too slow to govern AI at scale. AeroCaliper bridges the gap between Observability and Action using the Model Context Protocol. We allow Gemini to read its own failed traces, diagnose its own hallucinations against corporate RAG policies, mathematically prove its fixes via empirical backtesting, and deploy its own patches via the Arize Prompt Registry. We aren't just monitoring AI—we've built AI that governs and heals itself."*
