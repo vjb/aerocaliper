@@ -1,0 +1,31 @@
+📋 Ensuring phoenix working directory: C:\Users\vjbel\.phoenix
+setup plugin alembic.autogenerate.schemas
+setup plugin alembic.autogenerate.tables
+setup plugin alembic.autogenerate.types
+setup plugin alembic.autogenerate.constraints
+setup plugin alembic.autogenerate.defaults
+setup plugin alembic.autogenerate.comments
+C:\Users\vjbel\hacks\AeroCaliper\.venv\Lib\site-packages\phoenix\server\agents\pydantic_ai\openinference_agent_wrapper.py:28: PydanticAIDeprecationWarning: `pydantic_ai.messages.BuiltinToolCallPart` is deprecated, use `pydantic_ai.messages.NativeToolCallPart` instead.
+  from pydantic_ai.messages import (
+C:\Users\vjbel\hacks\AeroCaliper\.venv\Lib\site-packages\phoenix\server\agents\pydantic_ai\openinference_agent_wrapper.py:28: PydanticAIDeprecationWarning: `pydantic_ai.messages.BuiltinToolReturnPart` is deprecated, use `pydantic_ai.messages.NativeToolReturnPart` instead.
+  from pydantic_ai.messages import (
+C:\Users\vjbel\hacks\AeroCaliper\.venv\Lib\site-packages\phoenix\otel\otel.py:433: UserWarning: Could not infer collector endpoint protocol, defaulting to HTTP.
+  warnings.warn("Could not infer collector endpoint protocol, defaulting to HTTP.")
+The user provided Vertex AI API key will take precedence over the project/location from the environment variables.
+AFC is enabled with max remote calls: 10.
+HTTP Request: POST https://aiplatform.googleapis.com/v1beta1/publishers/google/models/gemini-3.1-pro-preview:generateContent "HTTP/1.1 200 OK"
+[Gateway] Configured to use REAL Google Cloud Model Armor API.
+The user provided Vertex AI API key will take precedence over the project/location from the environment variables.
+C:\Users\vjbel\hacks\AeroCaliper\.venv\Lib\site-packages\phoenix\otel\otel.py:433: UserWarning: Could not infer collector endpoint protocol, defaulting to HTTP.
+  warnings.warn("Could not infer collector endpoint protocol, defaulting to HTTP.")
+Overriding of current TracerProvider is not allowed
+Attempting to instrument while already instrumented
+[AeroCaliper v4.0] Initialized | model=gemini-3.1-pro-preview | A2A session=sess_209c24085d14
+========================================================
+[AeroCaliper v4.0] AUTONOMOUS REMEDIATION PIPELINE STARTED
+[AeroCaliper v4.0] Model: gemini-3.1-pro-preview
+[AeroCaliper v4.0] Native Tool Calling Loop Active
+[AeroCaliper v4.0] A2A Session: sess_209c24085d14
+========================================================
+[Phase 1] Agent Initialization & Anomaly Detection...
+AFC is enabled with max remote calls: 10.

@@ -79,6 +79,7 @@ We have built a fully automated simulation so you can witness the autonomous loo
    - `GOOGLE_AGENT_PLATFORM_API_KEY`
    - `PHOENIX_API_KEY`
    - `GCP_PROJECT_ID`
+   *(Note: For hackathon velocity, API keys are passed via env vars. In production, AeroCaliper natively integrates with GCP Secret Manager for credential injection.)*
 
 3. **Install Dependencies:**
    ```bash

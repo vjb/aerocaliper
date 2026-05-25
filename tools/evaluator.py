@@ -14,7 +14,9 @@ def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
     """
     # Load dataset locally as fallback
     try:
-        with open("golden_dataset.csv", "r", encoding="utf-8") as f:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        dataset_path = os.path.join(base_dir, "golden_dataset.csv")
+        with open(dataset_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             test_cases = list(reader)
     except FileNotFoundError:
@@ -42,7 +44,7 @@ def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
         from phoenix.client import Client as PhoenixClient
         px_client = PhoenixClient()
         dataset_name = "AeroCaliper HR Golden" if domain == "hr" else "AeroCaliper FinOps Golden"
-        px_dataset = px_client.datasets.get_dataset(name=dataset_name)
+        px_dataset = px_client.datasets.get_dataset(dataset_name)
         
         def px_task(input):
             test_request = f"System Instructions: {candidate_prompt}\n\nUser Request: {input}\n\nReturn ONLY valid JSON."

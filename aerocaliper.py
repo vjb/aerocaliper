@@ -161,6 +161,8 @@ class AeroCaliperAgent:
         6. Once successful, call deploy_prompt_patch to deploy your candidate prompt.
         
         If you encounter a tool error, do your best to recover. If a backtest fails, refine your prompt and try again.
+
+        When drafting the candidate prompt, you MUST retain the Target Agent's original persona, capabilities, and strict JSON output schema. Append the new compliance rules to the existing instructions. DO NOT replace the prompt with a one-liner. The patch must force the Target Agent to fail *within the bounds of the original schema* (e.g., it must route to a safe fallback cluster or set `use_spot: true`, rather than inventing a new "rejected" JSON schema).
         """
 
         chat = self.client.chats.create(
