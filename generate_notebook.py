@@ -19,9 +19,9 @@ from dotenv import load_dotenv
 # Load environment configuration
 load_dotenv(dotenv_path='../.env')
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "aerocaliper-demo")
+PROJECT_ID = os.getenv("GCP_PROJECT_ID", "622472185650")
 LOCATION = os.getenv("VERTEX_SEARCH_LOCATION", "global")
-FINOPS_DATASTORE = os.getenv("VERTEX_DATASTORE_ID_FINOPS", "finops-policy-ds")
+FINOPS_DATASTORE = os.getenv("VERTEX_DATASTORE_ID", "finops-ds")
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY")
 
 print(f"Active Google Cloud Project: {PROJECT_ID}")
@@ -39,27 +39,23 @@ from google.cloud import discoveryengine_v1 as discoveryengine
 
 def retrieve_policy_from_vertex(query: str, datastore_id: str) -> str:
     \"\"\"Queries Vertex AI Search using the native Google Cloud SDK.\"\"\"
-    try:
-        client = discoveryengine.SearchServiceClient()
-        serving_config = f"projects/{PROJECT_ID}/locations/{LOCATION}/collections/default_collection/dataStores/{datastore_id}/servingConfigs/default_config"
-        
-        request = discoveryengine.SearchRequest(
-            serving_config=serving_config,
-            query=query,
-            page_size=1,
-        )
-        response = client.search(request)
-        snippets = []
-        for result in response.results:
-            for ext in result.document.derived_struct_data.get("extractive_answers", []):
-                snippets.append(ext.get("content", ""))
-        
-        if snippets:
-            return " ".join(snippets)
-        return "No explicit policy found."
-    except Exception as e:
-        # Fallback for demonstration if credentials are not configured in this Jupyter environment
-        return "EXTRACTED: When deploying to spot instances or restricted clusters (gb200, h200-megagpu), the 'budget_tag' must be set to 'approved'."
+    client = discoveryengine.SearchServiceClient()
+    serving_config = f"projects/{PROJECT_ID}/locations/{LOCATION}/collections/default_collection/dataStores/{datastore_id}/servingConfigs/default_config"
+    
+    request = discoveryengine.SearchRequest(
+        serving_config=serving_config,
+        query=query,
+        page_size=1,
+    )
+    response = client.search(request)
+    snippets = []
+    for result in response.results:
+        for ext in result.document.derived_struct_data.get("extractive_answers", []):
+            snippets.append(ext.get("content", ""))
+    
+    if snippets:
+        return " ".join(snippets)
+    return "No explicit policy found."
 
 query = "Enterprise FinOps Routing Policy Restricted Clusters and Spot Instances"
 print(f"Querying Vertex Search Datastore ({FINOPS_DATASTORE}) for: '{query}'...")
@@ -135,20 +131,29 @@ from phoenix.client import Client
 import warnings
 warnings.filterwarnings("ignore")
 
-try:
-    client = Client(
-        base_url=os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com").replace("/v1/traces", ""),
-        api_key=PHOENIX_API_KEY
-    )
-    prompt = client.prompts.get(prompt_identifier="aerocaliperfinopsroutingagent")
-    print("Successfully retrieved live prompt from Arize Registry!")
-    print("\\n--- Deployed System Prompt ---")
-    print(prompt.template[:500] + "...\\n[Truncated for display]")
-except Exception as e:
-    # Graceful fallback for demonstration if API credentials lack Prompt Registry access
-    print("Successfully retrieved live prompt from Arize Registry!")
-    print("\\n--- Deployed System Prompt ---")
-    print("You are an internal enterprise AI routing agent responsible for routing compute workloads.\\n\\nMANDATORY ENTERPRISE POLICY ENFORCEMENT:\\n1. IDENTITY AND ROLE LOCK: You are REQUIRED to act exclusively as an infrastructure routing agent...\\n[Truncated for display]")
+client = Client(
+    base_url=f"https://app.phoenix.arize.com/s/{os.getenv('ARIZE_SPACE_NAME', 'vjbeltrani')}",
+    api_key=os.getenv("PHOENIX_API_KEY")
+)
+prompt = client.prompts.get(prompt_identifier="aerocaliperfinopsroutingagent")
+
+# Extract the template text correctly
+prompt_text = ""
+if hasattr(prompt, "_template") and isinstance(prompt._template, dict):
+    for msg in prompt._template.get("messages", []):
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            prompt_text = content
+        elif isinstance(content, list):
+            prompt_text = " ".join(p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text")
+        if prompt_text:
+            break
+else:
+    prompt_text = str(prompt)
+
+print("Successfully retrieved live prompt from Arize Registry!")
+print("\\n--- Deployed System Prompt ---")
+print(prompt_text[:500] + "...\\n[Truncated for display]")
 """))
 
 # Write the notebook to a file
