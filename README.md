@@ -53,15 +53,15 @@ flowchart TD
 
     subgraph AeroCaliper [AeroCaliper Autonomous Remediation Pipeline]
         Detect[1. Anomaly Detection\n(Gemini Intent Scan)]
-        MCPHandshake[2. MCP Handshake\n(@arizeai/phoenix-mcp)]
+        MCPHandshake[2. fetch_failed_traces\n(Arize Phoenix MCP)]
         Diag[3. Root Cause Diagnostic\n(Gemini 3.1 Pro)]
-        Judge{4. LLM-as-a-Judge\n(Empirical Backtest)}
+        Judge{4. run_empirical_backtest\n(Gemini 3.1 Pro Backtester)}
         AdminUI[5. A2UI Admin Panel\n(Human-in-the-Loop)]
     end
 
     subgraph GCPCloud [Google Cloud Infrastructure]
-        VertexRAG[(Vertex AI Search\nEnterprise Policies)]
-        Firestore[(Firestore\nPast Remediations)]
+        VertexRAG[(search_enterprise_policy\nVertex AI Search RAG)]
+        Firestore[(query_past_remediations\nCloud Firestore)]
         ModelArmor[Model Armor\n(DPI Egress Filter)]
     end
 
@@ -80,7 +80,7 @@ flowchart TD
     
     AdminUI -->|Approve| ModelArmor
     ModelArmor -->|Secure Egress| MCPHandshake
-    MCPHandshake <-->|upsert-prompt| PromptReg
+    MCPHandshake <-->|deploy_prompt_patch\nupsert-prompt| PromptReg
 
     %% Class Assignments
     class TargetAgent,Detect,Diag,Judge agent;
