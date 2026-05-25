@@ -29,14 +29,7 @@ class StandardMCPClient:
         base_url = f"https://app.phoenix.arize.com/s/{space_name}" if space_name else "https://app.phoenix.arize.com"
         
         if arize_key:
-            env_vars["PHOENIX_API_KEY"] = arize_key
-            import urllib.parse
-            import json
-            headers_json = json.dumps({
-                "api_key": arize_key,
-                "Authorization": f"Bearer {arize_key}"
-            })
-            env_vars["PHOENIX_CLIENT_HEADERS"] = urllib.parse.quote(headers_json)
+            env_vars["PHOENIX_CLIENT_HEADERS"] = f"api_key={arize_key}"
             env_vars["PHOENIX_COLLECTOR_ENDPOINT"] = base_url
             env_vars["PHOENIX_HOST"] = "https://app.phoenix.arize.com"
 
