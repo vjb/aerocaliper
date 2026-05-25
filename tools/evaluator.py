@@ -2,7 +2,10 @@ import csv
 import json
 import google.genai
 import os
+from dotenv import load_dotenv
 from evaluators import evaluate_finops_compliance, evaluate_hr_compliance
+
+load_dotenv()
 
 def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
     """

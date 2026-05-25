@@ -12,10 +12,10 @@ Powered by the **Google Agent Platform**, **Arize Phoenix**, and the **Model Con
 
 AeroCaliper is designed specifically to hit the Google Cloud Rapid Agent Hackathon criteria:
 
-1. **Meaningful Use of Tracing**: We don't just log OpenTelemetry traces; we *act* on them. The agent uses the Arize Phoenix MCP Server to autonomously query its own failure spans at runtime (`fetch_failed_traces`) and uses them as diagnostic context.
+1. **Meaningful Use of Tracing**: We don't just log OpenTelemetry traces via `openinference-instrumentation-google-genai`; we *act* on them. The agent uses the Arize Phoenix MCP Server to autonomously query its own failure spans at runtime (`fetch_failed_traces`) and uses them as diagnostic context.
 2. **Datasets & Experiments**: Instead of just testing locally, AeroCaliper utilizes the `arize-phoenix-client` to sync our Golden Truth datasets directly into the Phoenix Cloud (`scripts/sync_datasets_to_phoenix.py`). When the Gemini agent runs an autonomous empirical backtest to validate a patched prompt, it natively logs the results to the Phoenix Experiments UI via `px_client.experiments.run_experiment()`. This mathematically proves the self-healing loop in the dashboard over time.
 3. **Use of MCP**: We use the official `@arizeai/phoenix-mcp` server to seamlessly pull trace data and deploy patched prompts back to the registry without any code changes or redeployments.
-4. **Google Cloud Native**: Integrated deeply with Vertex AI Search RAG (for enterprise policy injection), Cloud Firestore (for episodic memory of past remediations), Model Armor (for Data Loss Prevention on egress), and Gemini 3.1 Pro.
+4. **Google Cloud Native**: Integrated deeply with Vertex AI Search RAG (for enterprise policy injection), Cloud Firestore (for episodic memory of past remediations), Model Armor (for Data Loss Prevention on egress), and Gemini 3.1 Pro via the new `google-genai` SDK.
 5. **Self-Improving Agents**: The entire pipeline is an autonomous self-healing loop that fixes agent hallucinations without human intervention, logging its improvements dynamically.
 
 ---
@@ -92,8 +92,8 @@ flowchart TD
 
 ## Core Technologies
 
-- **Google Agent Platform:** Orchestrates the multi-agent pipeline and drives all intelligent decision-making via `gemini-3.1-pro-preview`.
-- **Arize Phoenix & MCP:** Utilizes the official Python SDK for the Model Context Protocol to seamlessly pull traces and push prompt updates directly to the Arize cloud, effectively closing the observability loop.
+- **Google Agent Platform:** Orchestrates the multi-agent pipeline and drives all intelligent decision-making via `gemini-3.1-pro-preview` using the unified `google-genai` SDK.
+- **Arize Phoenix & OpenInference:** Instrumenting our code with `openinference-instrumentation-google-genai`, we seamlessly pull traces and push prompt updates directly to the Arize cloud using the official Python SDK and Model Context Protocol, effectively closing the observability loop.
 - **Google Cloud Model Armor:** Provides enterprise-grade egress inspection to ensure that no toxic, sensitive, or prohibited data is inadvertently leaked into the prompt registry.
 - **Vertex AI Search:** Implements a decoupled compliance architecture. Organizational policies are maintained as natural language documents in GCP datastores. AeroCaliper uses Vertex AI's *Extractive Answers* to dynamically inject the most up-to-date policies into the evaluation rubric without requiring code deployments.
 

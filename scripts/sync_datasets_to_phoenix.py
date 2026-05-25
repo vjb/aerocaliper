@@ -1,8 +1,10 @@
 import pandas as pd
 from phoenix.client import Client
 import os
+from dotenv import load_dotenv
 
 def sync_datasets():
+    load_dotenv()
     print("Syncing golden_dataset.csv to Phoenix Datasets...")
     client = Client()
     
