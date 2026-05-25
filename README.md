@@ -40,28 +40,28 @@ flowchart TD
     classDef Arize fill:#fce8e6,stroke:#d93025,stroke-width:2px,color:#d93025;
     classDef UI fill:#fef7e0,stroke:#f9ab00,stroke-width:2px,color:#b06000;
 
-    subgraph UserSpace [Target Environment]
-        User([End User Request]) --> TargetAgent[Target Agent\n(e.g., FinOps/HR)]
+    subgraph UserSpace ["Target Environment"]
+        User(["End User Request"]) --> TargetAgent["Target Agent<br/>(e.g., FinOps/HR)"]
         TargetAgent -->|OpenTelemetry Traces| ArizeCloud
     end
 
-    subgraph ArizeCloud [Arize Phoenix Cloud]
-        TraceDB[(Trace DB)]
-        PromptReg[(Prompt Registry)]
+    subgraph ArizeCloud ["Arize Phoenix Cloud"]
+        TraceDB[("Trace DB")]
+        PromptReg[("Prompt Registry")]
     end
 
-    subgraph AeroCaliper [AeroCaliper Autonomous Remediation Pipeline]
-        Detect[1. Anomaly Detection\n(Gemini Intent Scan)]
-        MCPHandshake[2. fetch_failed_traces\n(Arize Phoenix MCP)]
-        Diag[3. Root Cause Diagnostic\n(Gemini 3.1 Pro)]
-        Judge{4. run_empirical_backtest\n(Gemini 3.1 Pro Backtester)}
-        AdminUI[5. A2UI Admin Panel\n(Human-in-the-Loop)]
+    subgraph AeroCaliper ["AeroCaliper Autonomous Remediation Pipeline"]
+        Detect["1. Anomaly Detection<br/>(Gemini Intent Scan)"]
+        MCPHandshake["2. fetch_failed_traces<br/>(Arize Phoenix MCP)"]
+        Diag["3. Root Cause Diagnostic<br/>(Gemini 3.1 Pro)"]
+        Judge{"4. run_empirical_backtest<br/>(Gemini 3.1 Pro Backtester)"}
+        AdminUI["5. A2UI Admin Panel<br/>(Human-in-the-Loop)"]
     end
 
-    subgraph GCPCloud [Google Cloud Infrastructure]
-        VertexRAG[(search_enterprise_policy\nVertex AI Search RAG)]
-        Firestore[(query_past_remediations\nCloud Firestore)]
-        ModelArmor[Model Armor\n(DPI Egress Filter)]
+    subgraph GCPCloud ["Google Cloud Infrastructure"]
+        VertexRAG[("search_enterprise_policy<br/>Vertex AI Search RAG")]
+        Firestore[("query_past_remediations<br/>Cloud Firestore")]
+        ModelArmor["Model Armor<br/>(DPI Egress Filter)"]
     end
 
     %% Flow
@@ -79,7 +79,7 @@ flowchart TD
     
     AdminUI -->|Approve| ModelArmor
     ModelArmor -->|Secure Egress| MCPHandshake
-    MCPHandshake <-->|deploy_prompt_patch\nupsert-prompt| PromptReg
+    MCPHandshake <-->|"deploy_prompt_patch<br/>upsert-prompt"| PromptReg
 
     %% Class Assignments
     class TargetAgent,Detect,Diag,Judge agent;
