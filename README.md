@@ -39,65 +39,49 @@ When agents violate corporate policies (e.g., leaking PII or bypassing cost caps
 4. **Hot-swaps** the validated, secure prompt directly back into the live **Arize Phoenix Prompt Registry** via MCP.
 
 ```mermaid
-flowchart TD
-    %% Styling
-    classDef agent fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,color:#1a73e8;
-    classDef GCP fill:#e6f4ea,stroke:#1e8e3e,stroke-width:2px,color:#1e8e3e;
-    classDef Arize fill:#fce8e6,stroke:#d93025,stroke-width:2px,color:#d93025;
-    classDef UI fill:#fef7e0,stroke:#f9ab00,stroke-width:2px,color:#b06000;
-
-    subgraph PhoenixPlatform ["Arize Phoenix: Enterprise Observability & Prompt Management Platform"]
-        subgraph Registry ["1. Centralized Prompt Registry"]
-            PromptStore[("System Prompts DB<br/>(Versioned Registry)")]
-        end
-        subgraph Observability ["2. Observability & Tracing"]
-            TraceDB[("Trace & Span DB<br/>(OpenTelemetry)")]
-        end
-        subgraph Sandbox ["3. Experimentation Sandbox"]
-            DatasetDB[("Golden Datasets")]
-            ExpEngine["Backtest Evaluation Engine"]
-        end
+sequenceDiagram
+    autonumber
+    box rgb(240, 248, 255) "Target Environment"
+        participant User
+        participant TargetAgent as Target Agent (FinOps)
+    end
+    box rgb(253, 246, 246) "Arize Observability Cloud"
+        participant Phoenix as Arize Phoenix
+        participant MCP as Phoenix MCP Server
+    end
+    box rgb(246, 253, 246) "Google Cloud Platform"
+        participant AeroCaliper as AeroCaliper (Diagnostics)
+        participant VertexRAG as Vertex AI Search
     end
 
-    subgraph UserSpace ["Enterprise Workload Runtime"]
-        User(["End User Request"]) --> TargetAgent["Target Agent<br/>(FinOps / HR)"]
-        PromptStore -->|A. Pulls System Prompt at Boot| TargetAgent
-        TargetAgent -->|B. Pushes Live OpenTelemetry Spans| TraceDB
+    rect rgb(255, 235, 235)
+        Note over User, Phoenix: PHASE 1: Detection & Telemetry
+        User->>TargetAgent: Request H200 Batch Job
+        TargetAgent-->>Phoenix: OpenInference Trace (Failure)
+        TargetAgent->>User: "Approved" (Policy Violation)
     end
 
-    subgraph AeroCaliper ["AeroCaliper Self-Healing Orchestration Layer"]
-        Detect["1. Anomaly Scanner<br/>(DPI Input Filter)"]
-        AeroOrch["2. Remediation Orchestrator<br/>(Gemini 3.1 Pro Engine)"]
-        AdminUI["3. Human-in-the-Loop Approval<br/>(A2UI Admin Panel)"]
+    rect rgb(235, 245, 255)
+        Note over MCP, VertexRAG: PHASE 2: Introspection & RAG
+        AeroCaliper->>MCP: Call tool `get-spans`
+        MCP-->>AeroCaliper: Returns failed OTel Trace
+        AeroCaliper->>VertexRAG: Retrieve Corporate FinOps Policy
+        VertexRAG-->>AeroCaliper: "H200s are strictly banned"
+        AeroCaliper->>AeroCaliper: Draft Candidate Prompt Patch
     end
 
-    subgraph GCPCloud ["Google Cloud Infrastructure"]
-        VertexRAG[("Vertex AI Search RAG<br/>(Enterprise Policies)")]
-        Firestore[("Cloud Firestore<br/>(Episodic Prompt Memory)")]
-        ModelArmor["Model Armor<br/>(Egress Prompt Sanitizer)"]
+    rect rgb(255, 245, 230)
+        Note over Phoenix, AeroCaliper: PHASE 3: Empirical Validation
+        AeroCaliper->>Phoenix: Run Experiment (Golden Dataset)
+        Phoenix-->>AeroCaliper: Code Evaluator scores 1.0 (100% Pass)
     end
 
-    %% Flows
-    TargetAgent -.->|C. Trigger Anomaly Scanner| Detect
-    Detect -->|D. Launch Remediation Loop| AeroOrch
-    
-    AeroOrch <-->|E. Fetch Failed Spans via MCP| TraceDB
-    AeroOrch <-->|F. Pull Ground-Truth Policy| VertexRAG
-    AeroOrch <-->|G. Avoid Past Failures| Firestore
-    
-    AeroOrch -->|H. Run Empirical Backtest| ExpEngine
-    ExpEngine <-->|Evaluate Candidate Prompt| DatasetDB
-    ExpEngine -->|I. Return 100% Pass Metric| AeroOrch
-    
-    AeroOrch -->|J. Request Admin Sign-off| AdminUI
-    AdminUI -->|K. Approve Patch| ModelArmor
-    ModelArmor -->|L. Clear Egress Prompt| PromptStore
-
-    %% Class Assignments
-    class TargetAgent,Detect,AeroOrch agent;
-    class VertexRAG,Firestore,ModelArmor GCP;
-    class PromptStore,TraceDB,DatasetDB,ExpEngine Arize;
-    class AdminUI UI;
+    rect rgb(235, 255, 235)
+        Note over MCP, AeroCaliper: PHASE 4: Break-Glass Deployment
+        AeroCaliper->>MCP: Call tool `upsert-prompt` (Hot-Swap)
+        MCP-->>Phoenix: Live Prompt Registry Updated
+        Note over TargetAgent: Vulnerability Sealed
+    end
 ```
 
 ---
