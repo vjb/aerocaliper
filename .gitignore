@@ -65,3 +65,6 @@ Thumbs.db
 archive/ 
 env_vars.yaml
 env*.yaml
+
+# Test execution artifacts
+tests/artifacts/

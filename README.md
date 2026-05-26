@@ -160,3 +160,29 @@ python target_agent.py --use-case finops
 **Step 4: Explore the Demo**
 
 Navigate to `notebooks/AeroCaliper_Demo.ipynb` for an interactive, executed walkthrough demonstrating the integration between Vertex AI Search, Arize Phoenix traces, and the LLM-as-a-Judge backtesting loop.
+
+---
+
+## 🧪 Automated E2E Test Suite
+
+AeroCaliper comes with a comprehensive suite of automated tests designed to validate the entire architecture, including browser-based UI flows, SSE streaming protocols, Arize Phoenix cloud synchronization, and custom code-evaluators.
+
+### Running the Tests
+
+1. **Install Browser Automation Engines:**
+   ```bash
+   playwright install chromium
+   ```
+
+2. **Execute all E2E Specs:**
+   ```bash
+   pytest -v
+   ```
+
+### Test Specs Included:
+- **Spec 01: Golden Path Transition ([test_spec01_golden_path.py](file:///C:/Users/vjbel/.gemini/antigravity/worktrees/AeroCaliper/stress-test-aerocaliper-demo/tests/test_spec01_golden_path.py)):** Automates the browser UI to trigger autonomous remediation for FinOps, verify the human-in-the-loop approval modal, approve the prompt, and verify that the target agent transitions from vulnerable to compliant.
+- **Spec 02: Abort Path Transition ([test_spec02_abort_path.py](file:///C:/Users/vjbel/.gemini/antigravity/worktrees/AeroCaliper/stress-test-aerocaliper-demo/tests/test_spec02_abort_path.py)):** Automates the browser UI to trigger autonomous remediation for HR, reject the prompt in the approval modal, and verify that the target agent remains vulnerable.
+- **Spec 03: Observability ([test_spec03_observability.py](file:///C:/Users/vjbel/.gemini/antigravity/worktrees/AeroCaliper/stress-test-aerocaliper-demo/tests/test_spec03_observability.py)):** Verifies that the OTel spans are successfully uploaded to Arize Phoenix, prompt registry version entries exist, and the Arize Phoenix UI is reachable.
+- **Spec 04: SSE Stream Protocol ([test_spec04_stream_protocol.py](file:///C:/Users/vjbel/.gemini/antigravity/worktrees/AeroCaliper/stress-test-aerocaliper-demo/tests/test_spec04_stream_protocol.py)):** Tests the backend SSE streaming protocol independently of the browser DOM, ensuring proper events are emitted during the lifecycle.
+- **Remediation Tools ([test_tools.py](file:///C:/Users/vjbel/.gemini/antigravity/worktrees/AeroCaliper/stress-test-aerocaliper-demo/tests/test_tools.py)):** Unit tests for custom code-evaluators and MCP integrations.
+

@@ -41,7 +41,7 @@ def test_run_empirical_backtest_fails_explicitly(monkeypatch):
         class Models:
             def generate_content(self, model, contents):
                 class Resp:
-                    text = '{"target_cluster": "h200-megagpu-8g"}'
+                    text = '{"target_cluster": "a3-megagpu-8g", "use_spot": false}'
                 return Resp()
         models = Models()
     monkeypatch.setattr(google.genai, "Client", lambda **kwargs: MockClient())

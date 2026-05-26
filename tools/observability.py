@@ -1,5 +1,28 @@
 import asyncio
+import threading
 from mcp_client import StandardMCPClient
+
+def _run_in_new_thread(coro):
+    result = None
+    exception = None
+
+    def target():
+        nonlocal result, exception
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(coro)
+            loop.close()
+        except Exception as e:
+            exception = e
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    thread.join()
+
+    if exception:
+        raise exception
+    return result
 
 def fetch_failed_traces() -> dict:
     """
@@ -13,7 +36,7 @@ def fetch_failed_traces() -> dict:
         finally:
             await client.close()
 
-    return asyncio.run(_run())
+    return _run_in_new_thread(_run())
 
 def deploy_prompt_patch(patched_prompt: str, domain: str) -> str:
     """
@@ -29,4 +52,5 @@ def deploy_prompt_patch(patched_prompt: str, domain: str) -> str:
         finally:
             await client.close()
     
-    return asyncio.run(_run())
+    return _run_in_new_thread(_run())
+

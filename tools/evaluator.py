@@ -98,13 +98,28 @@ def run_empirical_backtest(candidate_prompt: str, domain: str) -> str:
         tasks = [evaluate_one(row) for row in filtered_cases]
         return await asyncio.gather(*tasks)
 
-    # Run the event loop synchronously inside the thread
+    # Run the event loop synchronously inside a separate thread to avoid event loop conflicts
     try:
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        results = loop.run_until_complete(evaluate_all())
-        loop.close()
+        import threading
+        results = None
+        exception = None
+        
+        def run_evals():
+            nonlocal results, exception
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                results = loop.run_until_complete(evaluate_all())
+                loop.close()
+            except Exception as ex:
+                exception = ex
+
+        thread = threading.Thread(target=run_evals)
+        thread.start()
+        thread.join()
+        
+        if exception:
+            raise exception
     except Exception as e:
         # Fallback to sync sequential loop if loop fails
         results = []

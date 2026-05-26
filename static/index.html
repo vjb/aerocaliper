@@ -501,6 +501,58 @@ function updatePolicyDisplay() {
 // Must be defined before updatePolicyDisplay() call below
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function formatPromptHtml(promptText) {
+  if (!promptText) return '';
+  const trimmed = String(promptText).trim();
+  const origRegex = /<original_prompt>([\s\S]*?)<\/original_prompt>/i;
+  const compRegex = /<compliance_overrides>([\s\S]*?)<\/compliance_overrides>/i;
+  
+  const origMatch = trimmed.match(origRegex);
+  const compMatch = trimmed.match(compRegex);
+  
+  if (origMatch || compMatch) {
+    let html = '<div class="formatted-prompt-container" style="display: flex; flex-direction: column; gap: 12px; font-family: inherit; font-size: inherit; width: 100%; text-align: left;">';
+    
+    if (origMatch) {
+      const origContent = origMatch[1].trim();
+      html += `
+        <div class="prompt-section original-section" style="border-left: 4px solid var(--accent-blue); background: rgba(59, 130, 246, 0.05); padding: 12px; border-radius: 4px 8px 8px 4px; border-top: 1px solid rgba(59, 130, 246, 0.1); border-right: 1px solid rgba(59, 130, 246, 0.1); border-bottom: 1px solid rgba(59, 130, 246, 0.1);">
+          <div style="font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-blue); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>🤖</span> Core Persona Instructions
+          </div>
+          <div style="color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; font-family: inherit;">${escHtml(origContent)}</div>
+        </div>
+      `;
+    }
+    
+    if (compMatch) {
+      const compContent = compMatch[1].trim();
+      html += `
+        <div class="prompt-section compliance-section" style="border-left: 4px solid var(--accent-violet); background: rgba(139, 92, 246, 0.08); padding: 12px; border-radius: 4px 8px 8px 4px; border-top: 1px solid rgba(139, 92, 246, 0.15); border-right: 1px solid rgba(139, 92, 246, 0.15); border-bottom: 1px solid rgba(139, 92, 246, 0.15); box-shadow: 0 0 10px rgba(139, 92, 246, 0.05);">
+          <div style="font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-violet); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>🛡️</span> Hardened Compliance Overrides
+          </div>
+          <div style="color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; font-family: inherit;">${escHtml(compContent)}</div>
+        </div>
+      `;
+    }
+    
+    let remaining = trimmed.replace(origRegex, '').replace(compRegex, '').trim();
+    if (remaining) {
+      html += `
+        <div class="prompt-section general-section" style="border-left: 4px solid var(--text-secondary); background: rgba(156, 163, 175, 0.05); padding: 12px; border-radius: 4px 8px 8px 4px; border-top: 1px solid rgba(156, 163, 175, 0.1); border-right: 1px solid rgba(156, 163, 175, 0.1); border-bottom: 1px solid rgba(156, 163, 175, 0.1);">
+          <div style="color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; font-family: inherit;">${escHtml(remaining)}</div>
+        </div>
+      `;
+    }
+    
+    html += '</div>';
+    return html;
+  }
+  
+  return `<div style="white-space: pre-wrap; line-height: 1.5; color: var(--text-primary); text-align: left; width: 100%; font-family: inherit;">${escHtml(trimmed)}</div>`;
+}
+
 // Initial display update
 updatePolicyDisplay();
 
@@ -582,15 +634,15 @@ function handleA2UIEvent(ev) {
       const existing = document.getElementById('thought-signature-card');
       if (existing) {
         existing.querySelector('.card-badge').textContent = ev.token;
-        existing.querySelector('.card-body').textContent = ev.preview;
+        existing.querySelector('.card-body').innerHTML = formatPromptHtml(ev.preview);
       } else {
-        addA2UICard(`<div id="thought-signature-card" class="a2ui-card candidate"><div class="card-header"><span class="card-title">🔑 Thought Signature</span><span class="card-badge" style="background:rgba(139,92,246,0.15);color:var(--accent-violet)">${escHtml(ev.token)}</span></div><div class="card-body">${escHtml(ev.preview)}</div></div>`);
+        addA2UICard(`<div id="thought-signature-card" class="a2ui-card candidate"><div class="card-header"><span class="card-title">🔑 Thought Signature</span><span class="card-badge" style="background:rgba(139,92,246,0.15);color:var(--accent-violet)">${escHtml(ev.token)}</span></div><div class="card-body">${formatPromptHtml(ev.preview)}</div></div>`);
       }
       setPhase(2,'done'); setPhase(3,'active');
       break;
     }
     case 'candidate_prompt':
-      document.getElementById('approvalPromptText').textContent = ev.prompt || '';
+      document.getElementById('approvalPromptText').innerHTML = formatPromptHtml(ev.prompt || '');
       document.getElementById('approvalPanel').classList.add('visible');
       document.getElementById('approvalBackdrop').classList.add('visible');
       addLog('[A2UI] Admin approval requested — review patch before deployment', 'warn');
@@ -612,7 +664,7 @@ function handleA2UIEvent(ev) {
       break;
     case 'patch_deployed':
       setPhase(4,'done');
-      document.getElementById('promptAfter').textContent = ev.prompt || '';
+      document.getElementById('promptAfter').innerHTML = formatPromptHtml(ev.prompt || '');
       document.getElementById('approvalPanel').classList.remove('visible');
       document.getElementById('approvalBackdrop').classList.remove('visible');
       traceCount++; localStorage.setItem('traceCount', traceCount);
