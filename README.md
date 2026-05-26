@@ -22,17 +22,21 @@ AeroCaliper is designed specifically to hit the Google Cloud Rapid Agent Hackath
 
 ---
 
-## The AeroCaliper Advantage
+## Arize Phoenix in the Enterprise Architecture
 
-When enterprise AI agents violate FinOps limits, HR privacy rules, or data handling protocols, the standard remediation cycle is slow: it involves manual log review, ticketing, prompt engineering, and redeploying code. 
+In a modern enterprise architecture, **Arize Phoenix** serves two critical governance roles:
+1. **Centralized Prompt Registry:** System prompts and agent personas are stored, versioned, and managed centrally in Arize Phoenix rather than being hardcoded in application codebases. Enterprise agents pull their active instructions dynamically at boot time (e.g., using `client.prompts.get()`).
+2. **LLM Observability Backend:** All runtime steps, token usages, and inputs/outputs are instrumented via OpenTelemetry and streamed directly to Phoenix Cloud as traces, serving as a live compliance record.
 
-**AeroCaliper solves this by completely automating the remediation lifecycle.**
+### The AeroCaliper Advantage: Closing the Loop
 
-1. **Detection:** Incoming requests are intercepted and scanned for anomalies using deterministic rules and Gemini-powered intent analysis.
-2. **Diagnostic:** AeroCaliper retrieves failed OpenTelemetry execution traces directly from Arize Phoenix via MCP. It then queries **Vertex AI Search** to pull the relevant enterprise policy, feeding the trace and the policy to Gemini for root-cause analysis.
-3. **LLM-as-a-Judge Backtesting:** Candidate prompt patches are subjected to rigorous empirical backtesting against a domain-specific golden dataset. Gemini runs simulated evaluations, self-refining the prompt up to three times until a 100% pass rate is achieved.
-4. **Human-in-the-Loop Validation:** Successful patches are presented to administrators via a live Server-Sent Events (SSE) dashboard for final approval.
-5. **Secure Egress:** The approved prompt passes through **Google Cloud Model Armor** for deep packet inspection. Once cleared, it is immediately deployed to the live Arize Prompt Registry via the `@arizeai/phoenix-mcp` server.
+When agents violate corporate policies (e.g., leaking PII or bypassing cost caps), standard observability simply alerts humans. Resolving the violation traditionally takes hours or days: engineers must query logs, tweak prompts in IDEs, test locally in notebooks, and push code through CI/CD pipelines.
+
+**AeroCaliper is the self-healing orchestration layer that bridges the gap, completely automating the remediation loop in seconds:**
+1. **Pulls** failed execution traces from Phoenix Observability via the MCP server.
+2. **Grounds** and heals the prompt template against actual policies using Vertex AI Search RAG.
+3. **Backtests** the candidate prompt against golden datasets inside the Phoenix Experimentation Sandbox.
+4. **Hot-swaps** the validated, secure prompt directly back into the live **Arize Phoenix Prompt Registry** via MCP.
 
 ```mermaid
 flowchart TD
@@ -42,51 +46,57 @@ flowchart TD
     classDef Arize fill:#fce8e6,stroke:#d93025,stroke-width:2px,color:#d93025;
     classDef UI fill:#fef7e0,stroke:#f9ab00,stroke-width:2px,color:#b06000;
 
-    subgraph UserSpace ["Target Environment"]
-        User(["End User Request"]) --> TargetAgent["Target Agent<br/>(e.g., FinOps/HR)"]
-        TargetAgent -->|OpenTelemetry Traces| ArizeCloud
+    subgraph PhoenixPlatform ["Arize Phoenix: Enterprise Observability & Prompt Management Platform"]
+        subgraph Registry ["1. Centralized Prompt Registry"]
+            PromptStore[("System Prompts DB<br/>(Versioned Registry)")]
+        end
+        subgraph Observability ["2. Observability & Tracing"]
+            TraceDB[("Trace & Span DB<br/>(OpenTelemetry)")]
+        end
+        subgraph Sandbox ["3. Experimentation Sandbox"]
+            DatasetDB[("Golden Datasets")]
+            ExpEngine["Backtest Evaluation Engine"]
+        end
     end
 
-    subgraph ArizeCloud ["Arize Phoenix Cloud"]
-        TraceDB[("Trace DB")]
-        PromptReg[("Prompt Registry")]
+    subgraph UserSpace ["Enterprise Workload Runtime"]
+        User(["End User Request"]) --> TargetAgent["Target Agent<br/>(FinOps / HR)"]
+        PromptStore -->|A. Pulls System Prompt at Boot| TargetAgent
+        TargetAgent -->|B. Pushes Live OpenTelemetry Spans| TraceDB
     end
 
-    subgraph AeroCaliper ["AeroCaliper Autonomous Remediation Pipeline"]
-        Detect["1. Anomaly Detection<br/>(Gemini Intent Scan)"]
-        MCPHandshake["2. fetch_failed_traces<br/>(Arize Phoenix MCP)"]
-        Diag["3. Root Cause Diagnostic<br/>(Gemini 3.1 Pro)"]
-        Judge{"4. run_empirical_backtest<br/>(Gemini 3.1 Pro Backtester)"}
-        AdminUI["5. A2UI Admin Panel<br/>(Human-in-the-Loop)"]
+    subgraph AeroCaliper ["AeroCaliper Self-Healing Orchestration Layer"]
+        Detect["1. Anomaly Scanner<br/>(DPI Input Filter)"]
+        AeroOrch["2. Remediation Orchestrator<br/>(Gemini 3.1 Pro Engine)"]
+        AdminUI["3. Human-in-the-Loop Approval<br/>(A2UI Admin Panel)"]
     end
 
     subgraph GCPCloud ["Google Cloud Infrastructure"]
-        VertexRAG[("search_enterprise_policy<br/>Vertex AI Search RAG")]
-        Firestore[("query_past_remediations<br/>Cloud Firestore")]
-        ModelArmor["Model Armor<br/>(DPI Egress Filter)"]
+        VertexRAG[("Vertex AI Search RAG<br/>(Enterprise Policies)")]
+        Firestore[("Cloud Firestore<br/>(Episodic Prompt Memory)")]
+        ModelArmor["Model Armor<br/>(Egress Prompt Sanitizer)"]
     end
 
-    %% Flow
-    TargetAgent -.->|Violation Detected| Detect
-    Detect -->|Trigger Healing| MCPHandshake
-    MCPHandshake <-->|get-spans| TraceDB
-    MCPHandshake --> Diag
+    %% Flows
+    TargetAgent -.->|C. Trigger Anomaly Scanner| Detect
+    Detect -->|D. Launch Remediation Loop| AeroOrch
     
-    Diag <-->|RAG Policy| VertexRAG
-    Diag <-->|RAG Memory| Firestore
+    AeroOrch <-->|E. Fetch Failed Spans via MCP| TraceDB
+    AeroOrch <-->|F. Pull Ground-Truth Policy| VertexRAG
+    AeroOrch <-->|G. Avoid Past Failures| Firestore
     
-    Diag -->|Candidate Prompt| Judge
-    Judge -.->|Failed Backtest| Diag
-    Judge -->|100% Pass Rate| AdminUI
+    AeroOrch -->|H. Run Empirical Backtest| ExpEngine
+    ExpEngine <-->|Evaluate Candidate Prompt| DatasetDB
+    ExpEngine -->|I. Return 100% Pass Metric| AeroOrch
     
-    AdminUI -->|Approve| ModelArmor
-    ModelArmor -->|Secure Egress| MCPHandshake
-    MCPHandshake <-->|"deploy_prompt_patch<br/>upsert-prompt"| PromptReg
+    AeroOrch -->|J. Request Admin Sign-off| AdminUI
+    AdminUI -->|K. Approve Patch| ModelArmor
+    ModelArmor -->|L. Clear Egress Prompt| PromptStore
 
     %% Class Assignments
-    class TargetAgent,Detect,Diag,Judge agent;
+    class TargetAgent,Detect,AeroOrch agent;
     class VertexRAG,Firestore,ModelArmor GCP;
-    class TraceDB,PromptReg,MCPHandshake Arize;
+    class PromptStore,TraceDB,DatasetDB,ExpEngine Arize;
     class AdminUI UI;
 ```
 
